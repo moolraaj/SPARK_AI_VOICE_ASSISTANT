@@ -1,0 +1,1976 @@
+{
+  "document_info": {
+    "file_name": "convertcsv.pdf",
+    "business_type": "Restaurant",
+    "parsed_by": "user_reviewed_and_saved_table",
+    "total_categories_count": 12,
+    "total_items_count": 194,
+    "updated_at": "2026-08-13T13:10:44.921349+00:00"
+  },
+  "categories": {
+    "Starters": [
+      {
+        "item_name": "Samosa ki Chaat",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Papdi Chaat",
+        "price": 280,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Tikka (Tawa)",
+        "price": 395,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Chilli",
+        "price": 395,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Kurkure",
+        "price": 380,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Kathi Roll",
+        "price": 380,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Lifafa",
+        "price": 380,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Sev Puri Shots",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Idli Chips",
+        "price": 190,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Idli Chilli",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Hara Bhara Kabab",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Hara Bhara Kabab in Cheese Sauce",
+        "price": 330,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mixed Kabab",
+        "price": 415,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Cheese Balls",
+        "price": 295,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Cheese Corn Balls",
+        "price": 295,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Cheese Balls in Chilli Garlic Sauce",
+        "price": 330,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Corn on Toast",
+        "price": 295,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Chilli Cheese Toast",
+        "price": 295,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Bruschetta",
+        "price": 295,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Garlic Bread Regular",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Garlic Bread Cheese",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mini Pav Bhaji",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mini Vada Pav Regular",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mini Vada Pav Grilled",
+        "price": 280,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Sesame Seeds on Toast",
+        "price": 215,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Chinese Bhel",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Cold Beverages": [
+      {
+        "item_name": "Juice Pineapple",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Juice Watermelon",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Juice Sweet Lime",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Fresh Lime Regular",
+        "price": 120,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Fresh Lime Soda",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Jal Jeera Regular",
+        "price": 115,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Jal Jeera Soda",
+        "price": 130,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Ginger Lemon Regular",
+        "price": 130,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Ginger Lemon Soda",
+        "price": 150,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Soda",
+        "price": 80,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Glass of Aerated Drink",
+        "price": 115,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Glass of Diet Aerated Drink",
+        "price": 125,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Bottled Drinking Water",
+        "price": 80,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Lassi Sweet",
+        "price": 190,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Lassi Salted",
+        "price": 190,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mango Lassi (In Season)",
+        "price": 215,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Buttermilk (Chass)",
+        "price": 125,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Milk Shake Vanilla",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Milk Shake Strawberry",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Milk Shake Chocolate",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Milk Shake Chickoo",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mango Milk Shake (In Season)",
+        "price": 250,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Milk Shake with Ice Cream",
+        "price": "Rs. 50 Extra",
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Fruit Punch",
+        "price": 195,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Pina Colada",
+        "price": 195,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Orange Blossom",
+        "price": 195,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Caipiroska Watermelon",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Caipiroska Kiwi",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Caipiroska Mango",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Caipiroska Strawberry",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mock PIMMS",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Peach Sunrise",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Iced Tea Peach",
+        "price": 160,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Iced Tea Lemon",
+        "price": 160,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Special Kesar Thandai",
+        "price": 195,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Fruit Zing Beer",
+        "price": 220,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Soups": [
+      {
+        "item_name": "Cream of Vegetable",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Sweet Corn Plain",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Sweet Corn Vegetable",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Veg Manchow Soup (Non Jain)",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Palak (Non Jain)",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tomato",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Minestrone",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Rasam",
+        "price": 160,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dinner Roll",
+        "price": 40,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Stick",
+        "price": 25,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Butter Chiplet",
+        "price": 60,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Salads": [
+      {
+        "item_name": "Green Salad",
+        "price": 120,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Russian Salad",
+        "price": 215,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Waldorf Salad",
+        "price": 235,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Raita - Boondi",
+        "price": 180,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Pineapple",
+        "price": 180,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable",
+        "price": 180,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Potato",
+        "price": 180,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dahi Vada",
+        "price": 215,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Plain Curd",
+        "price": 160,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dahi Idli",
+        "price": 215,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Paneer": [
+      {
+        "item_name": "Kaju Malai Mutter",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Kaju Mawa Korma",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Mutter",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Chole",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Lazeze",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Butter Masala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Bhurji in Butter",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Methi Malai",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Mushroom Masala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Palak",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Kadai Paneer",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Shahi Paneer Korma",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Kofta",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Corn Bhurji in Butter",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Baby Corn with Vegetable",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Paneer Lababdar",
+        "price": 390,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Vegetable": [
+      {
+        "item_name": "Corn Peas Green Masala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Corn Capsicum Red Masala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Bhurji in Butter",
+        "price": 325,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Makhanwala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Navratan Korma",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Kolhapur",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Kadai Vegetable",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Jaipuri",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Jalfrazie",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Green Kabab Masala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Mix Vegetable Green Masala",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Palak (Regular)",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Chilli Milli",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Chana Masala",
+        "price": 325,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Baigan Bharta",
+        "price": 325,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Bhindi Masala",
+        "price": 325,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Italian Korma",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Malai Kofta",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dum Aloo Punjabi",
+        "price": 375,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Aloo Gobhi",
+        "price": 325,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Jeera Aloo",
+        "price": 325,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dal Palak",
+        "price": 300,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dal Fried in Butter",
+        "price": 300,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dal Surti",
+        "price": 200,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dal Lachka",
+        "price": 200,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dahi Kadhi",
+        "price": 200,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Sambar",
+        "price": 200,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Gujarati Vegetable",
+        "price": 250,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Undhio (in season)",
+        "price": 275,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Meals": [
+      {
+        "item_name": "Puri Bhaji",
+        "price": 235,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Shrikhand Puri",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Basundi Puri",
+        "price": 260,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Aamras Puri (in season)",
+        "price": 300,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Rice with Sambar & Papad",
+        "price": 245,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Rice with Kadhi & Papad",
+        "price": 245,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Pulao with Dahi Kadhi & Papad",
+        "price": 280,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Khichdi with Kadhi & Papad",
+        "price": 270,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Masala Khichdi with Kadhi & Papad",
+        "price": 290,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Rice with Lachha Dal",
+        "price": 245,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Surti Dal",
+        "price": 245,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Rasam & Papad",
+        "price": 245,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Roti": [
+      {
+        "item_name": "Tandoori Roti Plain",
+        "price": 70,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tandoori Roti Butter",
+        "price": 80,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Kulcha/Naan Plain",
+        "price": 85,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Kulcha/Naan Butter",
+        "price": 105,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Masala Kulcha",
+        "price": 105,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Onion Kulcha",
+        "price": 105,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Garlic Naan",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Chilly Garlic Naan",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Chilly Cheese Naan",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Chilli Cheese Garlic Naan",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Cheese Naan",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Cheese Garlic Naan",
+        "price": 135,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tawa Paratha Plain",
+        "price": 100,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tawa Paratha Butter",
+        "price": 110,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tawa Paratha Pudina",
+        "price": 100,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tawa Paratha Methi",
+        "price": 100,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Aloo Paratha",
+        "price": 125,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Butter Tandoori Lachha Paratha",
+        "price": 125,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Reshmi Paratha",
+        "price": 105,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Roomali Roti Plain",
+        "price": 90,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Roomali Roti Butter",
+        "price": 105,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Puri (Six)",
+        "price": 85,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Bhatura",
+        "price": 90,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Tawa Chapati (Phulka)",
+        "price": 45,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Papad (Roasted)",
+        "price": 50,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Masala Papad (Fried)",
+        "price": 70,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Masala Khichia Papad (Fried)",
+        "price": 115,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Papad Chura",
+        "price": 115,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Thepla",
+        "price": 50,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Rice": [
+      {
+        "item_name": "Curd Rice & Papad (Dahi Bhaat)",
+        "price": 245,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Pulao",
+        "price": 240,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Peas Pulao",
+        "price": 240,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Jeera Rice",
+        "price": 240,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vegetable Biryani",
+        "price": 280,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Handi Biryani",
+        "price": 290,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Khichdi with Papad",
+        "price": 240,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Masala Khichdi with Papad",
+        "price": 270,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Dal Khichdi with Papad",
+        "price": 270,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Thali": [
+      {
+        "item_name": "Gujarati Thali Dinner",
+        "price": 450,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Beverages": [
+      {
+        "item_name": "Tea",
+        "price": 105,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Masala Tea",
+        "price": 115,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Coffee",
+        "price": 110,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Nes Coffee",
+        "price": 115,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Hot Chocolate",
+        "price": 125,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ],
+    "Desserts": [
+      {
+        "item_name": "Kesari Shrikhand",
+        "price": 160,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Basundi",
+        "price": 160,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Aamras (in season)",
+        "price": 250,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Fruit Salad Plain",
+        "price": 155,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Fruit Salad with Ice Cream",
+        "price": 200,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vanilla Ice Cream",
+        "price": 175,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Vanilla with Chocolate Sauce & Nuts",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Choice of Ice Cream",
+        "price": 185,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Rose Petal Ice Cream",
+        "price": 210,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      },
+      {
+        "item_name": "Malai Kulfi",
+        "price": 180,
+        "is_veg": true,
+        "metadata_source": {
+          "item_name": "source_extracted",
+          "price": "source_extracted",
+          "is_veg": "system_inferred"
+        }
+      }
+    ]
+  }
+}
