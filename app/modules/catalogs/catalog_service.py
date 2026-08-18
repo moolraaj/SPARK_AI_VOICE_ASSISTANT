@@ -246,23 +246,6 @@ class CatalogService:
 
         return await self.get_item_by_id_public(item_id)
 
-        return {
-            "success": True,
-            "data": {
-                "id": str(item["_id"]),
-                "owner_id": item.get("owner_id"),
-                "document_id": item.get("document_id"),
-                "category_id": item.get("category_id"),
-                "item_name": item.get("item_name"),
-                "price": item.get("price"),
-                "is_veg": item.get("is_veg", True),
-                "description": item.get("description"),
-                "status": item.get("status", "ACTIVE"),
-                "created_at": item.get("created_at"),
-                "updated_at": item.get("updated_at"),
-            }
-        }
-
     async def create_item(self, request: CreateCatalogItemRequest, current_user: dict) -> dict:
         owner_id = str(current_user["_id"])
 
@@ -305,6 +288,34 @@ class CatalogService:
             "message": "Catalog item created and synced to Vector DB successfully.",
             "data": doc_data
         }
+
+    async def get_item_by_name(
+            self,
+            owner_id: str,
+            item_name: str,
+        ) -> dict | None:
+
+            item = await self.repository.get_item_by_name(
+                owner_id=owner_id,
+                item_name=item_name,
+            )
+
+            if not item:
+                return None
+
+            return {
+                "id": str(item["_id"]),
+                "owner_id": item.get("owner_id"),
+                "document_id": item.get("document_id"),
+                "category_id": item.get("category_id"),
+                "item_name": item.get("item_name"),
+                "price": item.get("price"),
+                "is_veg": item.get("is_veg", True),
+                "description": item.get("description"),
+                "status": item.get("status", "ACTIVE"),
+                "created_at": item.get("created_at"),
+                "updated_at": item.get("updated_at"),
+            }
 
     async def update_item(self, item_id: str, request: UpdateCatalogItemRequest, current_user: dict) -> dict:
         owner_id = str(current_user["_id"])
@@ -373,3 +384,39 @@ class CatalogService:
             print(f"⚠️  Qdrant vector point delete warning: {e}")
 
         return {"success": True, "message": "Catalog item deleted successfully."}
+
+    async def get_menu_categories(
+            self,
+            owner_id: str,
+        ) -> list[dict]:
+
+            if not owner_id:
+                return []
+
+            return await self.repository.get_categories_by_owner(
+                owner_id=owner_id,
+            )
+
+    async def get_items_by_category_name(
+        self,
+        owner_id: str,
+        category_name: str,
+    ) -> list[dict]:
+
+        if not owner_id or not category_name:
+            return []
+
+        category = await self.repository.get_category_by_name(
+            owner_id=owner_id,
+            category_name=category_name,
+        )
+
+        if not category:
+            return []
+
+        category_id = str(category["_id"])
+
+        return await self.repository.get_items_by_category(
+            owner_id=owner_id,
+            category_id=category_id,
+        )

@@ -165,3 +165,78 @@ class CatalogRepository:
     async def delete_items_by_document(self, owner_id: str, document_id: str) -> int:
         result = await self.items.delete_many({"owner_id": owner_id, "document_id": document_id})
         return result.deleted_count
+
+    async def get_item_by_name(
+        self,
+        owner_id: str,
+        item_name: str,
+    ) -> dict | None:
+
+        if not owner_id or not item_name:
+            return None
+
+        return await self.items.find_one(
+            {
+                "owner_id": owner_id,
+                "item_name": {
+                    "$regex": f"^{item_name.strip()}$",
+                    "$options": "i",
+                },
+                "status": "ACTIVE",
+            }
+        )
+
+    async def get_items_by_category(
+        self,
+        owner_id: str,
+        category_id: str,
+    ) -> list[dict]:
+
+        if not owner_id or not category_id:
+            return []
+
+        docs = await self.items.find(
+            {
+                "owner_id": owner_id,
+                "category_id": category_id,
+                "status": "ACTIVE",
+            }
+        ).sort(
+            "item_name",
+            1
+        ).to_list(length=200)
+
+        return [
+            {
+                "id": str(d["_id"]),
+                "owner_id": d.get("owner_id"),
+                "document_id": d.get("document_id"),
+                "category_id": d.get("category_id"),
+                "item_name": d.get("item_name"),
+                "price": d.get("price"),
+                "is_veg": d.get("is_veg", True),
+                "description": d.get("description"),
+                "status": d.get("status", "ACTIVE"),
+            }
+            for d in docs
+        ]
+
+    async def get_category_by_name(
+        self,
+        owner_id: str,
+        category_name: str,
+    ) -> dict | None:
+
+        if not owner_id or not category_name:
+            return None
+
+        return await self.categories.find_one(
+            {
+                "owner_id": owner_id,
+                "name": {
+                    "$regex": f"^{category_name.strip()}$",
+                    "$options": "i",
+                },
+                "status": "ACTIVE",
+            }
+        )

@@ -1,12 +1,15 @@
 from typing import Any
 
+from typing import Any
+
+from ....modules.catalogs.catalog_service import CatalogService
 from app.rag.vectorstore.qdrant_store import qdrant_store
 
 
 class RestaurantTools:
 
     def __init__(self):
-        pass
+        self.catalog_service = CatalogService()
 
     async def search_menu(
         self,
@@ -73,10 +76,12 @@ class RestaurantTools:
                 top_k=top_k,
             )
 
-        except Exception:
+        except Exception as e:
+            print(f"❌ Restaurant menu search error: {e}")
+
             return {
                 "success": False,
-                "error": "Unable to search the restaurant menu.",
+                "error": str(e),
                 "items": [],
             }
 
@@ -113,6 +118,149 @@ class RestaurantTools:
         return {
             "success": True,
             "query": query,
+            "count": len(items),
+            "items": items,
+        }
+
+    async def get_menu_item(
+        self,
+        owner_id: str,
+        menu_item_name: str,
+    ) -> dict[str, Any]:
+
+        if not owner_id:
+            return {
+                "success": False,
+                "found": False,
+                "error": "owner_id is required.",
+                "item": None,
+            }
+
+        if not menu_item_name or not menu_item_name.strip():
+            return {
+                "success": False,
+                "found": False,
+                "error": "menu_item_name is required.",
+                "item": None,
+            }
+
+        menu_item_name = menu_item_name.strip()
+
+        result = await self.catalog_service.get_item_by_name(
+            owner_id=owner_id,
+            item_name=menu_item_name,
+        )
+
+        # VERY IMPORTANT
+        if result is None:
+            return {
+                "success": True,
+                "found": False,
+                "item": None,
+                "message": f"Menu item '{menu_item_name}' not found.",
+            }
+
+        return {
+            "success": True,
+            "found": True,
+            "item": {
+                "id": result.get("id"),
+                "item_name": result.get("item_name"),
+                "category_id": result.get("category_id"),
+                "price": result.get("price"),
+                "is_veg": result.get("is_veg", True),
+                "description": result.get("description"),
+            },
+        }
+
+
+
+    async def get_menu_categories(
+        self,
+        owner_id: str,
+    ) -> dict[str, Any]:
+
+        if not owner_id:
+            return {
+                "success": False,
+                "error": "owner_id is required.",
+                "categories": [],
+            }
+
+        try:
+            categories = await self.catalog_service.get_menu_categories(
+                owner_id=owner_id,
+            )
+
+            return {
+                "success": True,
+                "count": len(categories),
+                "categories": categories,
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "categories": [],
+            }
+
+    async def get_menu_items_by_category(
+        self,
+        owner_id: str,
+        category_name: str,
+    ) -> dict[str, Any]:
+
+        if not owner_id:
+            return {
+                "success": False,
+                "error": "owner_id is required.",
+                "items": [],
+            }
+
+        if not category_name or not category_name.strip():
+            return {
+                "success": False,
+                "error": "category_name is required.",
+                "items": [],
+            }
+
+        category_name = category_name.strip()
+
+        try:
+            items = await self.catalog_service.get_items_by_category_name(
+                owner_id=owner_id,
+                category_name=category_name,
+            )
+
+        except Exception as e:
+            print(
+                f"❌ get_menu_items_by_category failed | "
+                f"category={category_name} | "
+                f"error={e}"
+            )
+
+            return {
+                "success": False,
+                "error": str(e),
+                "items": [],
+            }
+
+        if not items:
+            return {
+                "success": True,
+                "category_name": category_name,
+                "count": 0,
+                "items": [],
+                "message": (
+                    f"No menu items found in "
+                    f"'{category_name}'."
+                ),
+            }
+
+        return {
+            "success": True,
+            "category_name": category_name,
             "count": len(items),
             "items": items,
         }

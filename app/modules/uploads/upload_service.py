@@ -216,7 +216,6 @@ class UploadService:
         Confirm: Redis → MongoDB (menu_categories + menu_items) + Qdrant vector store.
         Clears Redis key after successful save.
         """
-        from app.modules.menu.menu_service import MenuService
         owner_id = str(current_user["_id"])
 
         # 1. Fetch preview from Redis

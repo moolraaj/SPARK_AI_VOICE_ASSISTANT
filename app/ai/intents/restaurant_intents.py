@@ -8,6 +8,7 @@ class RestaurantIntent(str, Enum):
     MENU_AVAILABILITY_INQUIRY = "MENU_AVAILABILITY_INQUIRY"
     MENU_ITEM_DETAILS = "MENU_ITEM_DETAILS"
     MENU_CATEGORY_LISTING = "MENU_CATEGORY_LISTING"
+    MENU_CATEGORY_ITEMS_LISTING = "MENU_CATEGORY_ITEMS_LISTING"
 
     # Suggestions & Recommendations
     FOOD_RECOMMENDATION = "FOOD_RECOMMENDATION"
@@ -30,17 +31,21 @@ class RestaurantIntent(str, Enum):
 
 RESTAURANT_INTENTS = {
 
+    # =========================================================
+    # MENU
+    # =========================================================
+
     "MENU_PRICE_INQUIRY": {
         "description": (
-            "Customer asks for the price, rate, or cost of a specific "
-            "menu item. Use ONLY when a specific item is mentioned. "
-            "NOT for general budget recommendations."
+            "Customer explicitly asks for the price, rate, cost, "
+            "or amount of a specific menu item."
         ),
         "examples": [
             "Paneer tikka kitne ka hai?",
             "What is the price of Butter Chicken?",
             "Cold coffee ka price batao.",
             "Bhai iska rate kya hai?",
+            "Dal makhni kitne ki hai?",
         ],
         "entities": [
             "menu_item_name",
@@ -49,14 +54,16 @@ RESTAURANT_INTENTS = {
 
     "MENU_AVAILABILITY_INQUIRY": {
         "description": (
-            "Customer wants to know whether a specific food or drink "
-            "item is currently available. NOT for general menu browsing."
+            "Customer explicitly asks whether a specific food or drink "
+            "item is available or can be served currently or on a "
+            "specified date/time."
         ),
         "examples": [
             "Aaj Hakka Noodles available hain?",
             "Do you have Cold Coffee right now?",
             "Pizza milega kya abhi?",
             "Butter chicken hai kya aaj?",
+            "Dal makhni available hai?",
         ],
         "entities": [
             "menu_item_name",
@@ -65,10 +72,9 @@ RESTAURANT_INTENTS = {
 
     "MENU_ITEM_DETAILS": {
         "description": (
-            "Customer asks about details of a specific dish such as "
-            "ingredients, veg/non-veg status, spice level, allergens, "
-            "calories, portion size, customization, or preparation. "
-            "NOT for price or availability."
+            "Customer asks for factual details about a specific menu item, "
+            "such as ingredients, preparation, veg/non-veg status, "
+            "spice level, allergens, calories, portion size, or customization."
         ),
         "examples": [
             "Kya Dal Makhani veg hai?",
@@ -76,6 +82,7 @@ RESTAURANT_INTENTS = {
             "Is dish mein garlic hai?",
             "Kitna spicy hai ye paneer tikka?",
             "Kya is dish mein nuts hain?",
+            "Dal makhni kaise banti hai?",
         ],
         "entities": [
             "menu_item_name",
@@ -85,24 +92,47 @@ RESTAURANT_INTENTS = {
 
     "MENU_CATEGORY_LISTING": {
         "description": (
-            "Customer wants to browse items under a category such as "
-            "starters, drinks, desserts, or wants to see the full menu."
+            "Customer wants to browse or list menu items under a category "
+            "or wants to see the complete menu."
         ),
         "examples": [
             "Aapke paas desserts mein kya kya hai?",
-            "Starters me kya kya hai.",
+            "Starters me kya kya hai?",
             "Full menu dikhao.",
             "Kya kya milta hai yahan?",
+            "Drinks mein kya kya hai?",
         ],
         "entities": [
             "category_name",
         ],
     },
 
+    "MENU_CATEGORY_ITEMS_LISTING": {
+        "description": (
+            "Customer wants to see menu items belonging to a specific "
+            "category such as starters, desserts, beverages, or main course."
+        ),
+        "examples": [
+            "Cold Beverages mein kya kya hai?",
+            "Starters mein kya milta hai?",
+            "Spicy category mein kya kya dishes hain?",
+            "Desserts dikhao.",
+            "Main course mein kya options hain?",
+        ],
+        "entities": [
+            "category_name",
+        ],
+    },
+
+    # =========================================================
+    # RECOMMENDATIONS
+    # =========================================================
+
     "FOOD_RECOMMENDATION": {
         "description": (
-            "Customer wants food or drink recommendations based on "
-            "taste preference, diet, budget, meal type, or occasion."
+            "Customer asks for a personal food or drink recommendation "
+            "based on taste, dietary preference, budget, meal type, "
+            "occasion, or similar preference."
         ),
         "examples": [
             "Kuch spicy suggest karo.",
@@ -110,6 +140,7 @@ RESTAURANT_INTENTS = {
             "Dinner ke liye kya best rahega?",
             "Koi light veg option hai?",
             "What should I try for lunch?",
+            "Mujhe spicy veg food chahiye, kya lu?",
         ],
         "entities": [
             "preference",
@@ -122,29 +153,41 @@ RESTAURANT_INTENTS = {
 
     "BESTSELLER_POPULAR_ITEMS": {
         "description": (
-            "Customer asks for the most ordered, most popular, "
-            "highly rated, or signature dishes. This is about what "
-            "is famous at the restaurant, not a personal recommendation."
+            "Customer asks which items are popular, famous, bestselling, "
+            "signature, most ordered, or highly rated at the restaurant."
         ),
         "examples": [
             "Aapke cafe ki sabse best dish konsi hai?",
             "Top 3 most ordered items batao.",
             "Signature dish kya hai aapki?",
             "What's your specialty?",
+            "Sabse zyada kya bikta hai?",
+            "Aapka bestseller kya hai?",
         ],
         "entities": [],
     },
 
+    # =========================================================
+    # ORDER
+    # =========================================================
+
     "ORDER_CREATE": {
         "description": (
-            "Customer wants to place a new order or add food/drink "
-            "items to the current order for delivery, takeaway, or dine-in."
+            "Customer explicitly wants to place a new order or add "
+            "food/drink items to an order for delivery, takeaway, "
+            "or dine-in."
+            
+            "An explicit ordering intention is REQUIRED. "
+            "Do NOT use this intent when the customer only mentions "
+            "a food item or dish name without saying they want to order it."
         ),
         "examples": [
             "2 Plate Butter Naan aur 1 Kadhai Paneer pack kar do.",
             "Ek Cold Coffee order kar do.",
             "Mujhe 1 Cheese Pizza chahiye delivery ke liye.",
             "Dal makhani aur naan lena hai.",
+            "Dal makhni order kar do.",
+            "2 samose pack kar do.",
         ],
         "entities": [
             "order_items",
@@ -155,14 +198,15 @@ RESTAURANT_INTENTS = {
 
     "ORDER_STATUS_INQUIRY": {
         "description": (
-            "Customer asks about the current status, progress, "
-            "or estimated time of an existing order."
+            "Customer asks about an existing order's status, progress, "
+            "preparation, readiness, delivery, or estimated completion time."
         ),
         "examples": [
             "Mera order kaha tak pahucha?",
             "Kitna time aur lagega food aane mein?",
             "Is my pizza order ready?",
             "Kab tak deliver hoga?",
+            "Maine jo order diya tha wo bana kya?",
         ],
         "entities": [
             "order_id",
@@ -172,14 +216,15 @@ RESTAURANT_INTENTS = {
 
     "ORDER_CANCEL": {
         "description": (
-            "Customer wants to cancel an active order or remove "
-            "a specific item from an order."
+            "Customer explicitly wants to cancel an existing order "
+            "or remove a specific item from an existing order."
         ),
         "examples": [
             "Mera order cancel kar do.",
             "Mujhe Cold Coffee cancel karni hai.",
             "Please cancel my order.",
             "Order rok do abhi.",
+            "Jo order diya tha usko cancel karo.",
         ],
         "entities": [
             "order_id",
@@ -187,17 +232,21 @@ RESTAURANT_INTENTS = {
         ],
     },
 
+    # =========================================================
+    # TABLE
+    # =========================================================
+
     "TABLE_BOOKING_CREATE": {
         "description": (
-            "Customer wants to reserve or book a restaurant table. "
-            "Date, time, and guest count may be missing; the workflow "
-            "will collect missing information later."
+            "Customer explicitly wants to create, reserve, or book "
+            "a restaurant table."
         ),
         "examples": [
             "Aaj raat 8 baje 4 logon ke liye table book kar do.",
             "Can I reserve a table for 2 people tomorrow?",
             "Table booking karni hai kal sham ko.",
             "Aaj ke liye table chahiye.",
+            "4 logon ke liye table reserve kar do.",
         ],
         "entities": [
             "guests_count",
@@ -209,12 +258,14 @@ RESTAURANT_INTENTS = {
     "TABLE_AVAILABILITY_CHECK": {
         "description": (
             "Customer wants to know whether a table is available "
-            "for a specific time, date, or number of guests."
+            "for a specified or implied date, time, or number of guests. "
+            "This is an availability question, not a booking request."
         ),
         "examples": [
             "Kya 7 baje table khaali milegi?",
             "Do you have space for 6 people tonight?",
             "Aaj table milegi kya?",
+            "Kal 4 logon ke liye table available hogi?",
         ],
         "entities": [
             "guests_count",
@@ -225,7 +276,8 @@ RESTAURANT_INTENTS = {
 
     "TABLE_BOOKING_CANCEL": {
         "description": (
-            "Customer wants to cancel an existing table reservation."
+            "Customer explicitly wants to cancel an existing "
+            "table reservation."
         ),
         "examples": [
             "Meri table booking cancel kar do.",
@@ -239,17 +291,22 @@ RESTAURANT_INTENTS = {
         ],
     },
 
+    # =========================================================
+    # SUPPORT
+    # =========================================================
+
     "COMPLAINT_FEEDBACK": {
         "description": (
-            "Customer is expressing dissatisfaction or reporting "
-            "a problem such as delayed food, wrong items, cold food, "
-            "bad food quality, or poor service."
+            "Customer expresses dissatisfaction, reports a problem, "
+            "or gives negative feedback about food, an order, or service."
         ),
         "examples": [
             "Khana thanda aaya tha.",
             "Order bohot late ho gaya.",
             "Aapne galat item bhej diya.",
             "Food quality theek nahi thi.",
+            "Mere khane mein baal aa gaya.",
+            "Service bahut kharab thi.",
         ],
         "entities": [
             "complaint_text",
@@ -260,9 +317,9 @@ RESTAURANT_INTENTS = {
 
     "RESTAURANT_INFORMATION": {
         "description": (
-            "Customer asks for factual information about the restaurant "
-            "such as WiFi password, address, opening hours, closing hours, "
-            "delivery area, parking, contact number, or home delivery."
+            "Customer asks for factual information about the restaurant, "
+            "such as address, opening hours, closing hours, parking, WiFi, "
+            "delivery area, contact number, or home delivery."
         ),
         "examples": [
             "WiFi password kya hai?",
