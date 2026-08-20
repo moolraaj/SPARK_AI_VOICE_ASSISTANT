@@ -1,63 +1,48 @@
 from typing import Any
 
-from .tool_mapping import RESTAURANT_TOOLS
+from app.ai.models.tool_result import ToolResult
+
+from .tool_mapping import TOOL_REGISTRY
 
 
 class ToolExecutor:
 
     def __init__(self):
-        self.tool_registry = {
-            "RESTAURANT": RESTAURANT_TOOLS,
-        }
 
+        self.tool_registry = TOOL_REGISTRY
 
         print(
             "REGISTERED RESTAURANT TOOLS:",
-            list(RESTAURANT_TOOLS.keys())
+            [
+                tool.name
+                for tool in self.tool_registry.get(
+                    "RESTAURANT",
+                    [],
+                )
+            ],
         )
 
     async def execute(
         self,
-        route: dict[str, Any],
+        business_type: str,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
         context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
 
+        arguments = arguments or {}
         context = context or {}
-
-        business_type = route.get("business_type")
-        tool_name = route.get("tool_name")
-        route_type = route.get("route_type")
-
-        # ---------------------------------------------------------
-        # No tool required
-        # ---------------------------------------------------------
-
-        if route_type != "TOOL":
-            return {
-                "success": True,
-                "route_type": route_type,
-                "tool_name": None,
-                "result": None,
-            }
 
         if not business_type:
             raise ValueError(
-                "business_type is required for tool execution."
-            )
-
-        if not tool_name:
-            raise ValueError(
-                f"No tool configured for intent: "
-                f"{route.get('intent')}"
+                "business_type is required."
             )
 
         business_type = business_type.upper().strip()
 
-        # ---------------------------------------------------------
-        # Get tools for business type
-        # ---------------------------------------------------------
-
-        tools = self.tool_registry.get(business_type)
+        tools = self.tool_registry.get(
+            business_type
+        )
 
         if not tools:
             raise ValueError(
@@ -65,11 +50,14 @@ class ToolExecutor:
                 f"{business_type}"
             )
 
-        # ---------------------------------------------------------
-        # Find actual Python function
-        # ---------------------------------------------------------
-
-        tool = tools.get(tool_name)
+        tool = next(
+            (
+                registered_tool
+                for registered_tool in tools
+                if registered_tool.name == tool_name
+            ),
+            None,
+        )
 
         if tool is None:
             raise ValueError(
@@ -77,65 +65,33 @@ class ToolExecutor:
                 f"for business type '{business_type}'."
             )
 
-        # ---------------------------------------------------------
-        # Convert IntentEntity list → dict
-        # ---------------------------------------------------------
-
-        raw_entities = route.get("entities") or []
-
-        entity_dict = {}
-
-        for entity in raw_entities:
-            entity_dict[entity.name] = entity.value
-
-        # ---------------------------------------------------------
-        # Prepare tool arguments
-        # ---------------------------------------------------------
-
         tool_arguments = {
             **context,
-            **entity_dict,
+            **arguments,
         }
 
-        # ---------------------------------------------------------
-        # Logs
-        # ---------------------------------------------------------
-
-        print(f"Context   : {context}")
-        print(f"Arguments : {tool_arguments}")
-
-        # ---------------------------------------------------------
-        # Execute tool
-        # ---------------------------------------------------------
+        print("\n🔧 TOOL EXECUTION")
+        print(f"Business Type : {business_type}")
+        print(f"Tool Name     : {tool_name}")
+        print(f"Arguments     : {tool_arguments}")
 
         try:
 
-            result = await tool(**tool_arguments)
-
-        except TypeError as exc:
-
-            raise ValueError(
-                f"Invalid arguments for tool '{tool_name}': "
-                f"{exc}"
-            ) from exc
+            result = await tool.ainvoke(
+                tool_arguments
+            )
 
         except Exception as exc:
 
-            raise RuntimeError(
-                f"Tool '{tool_name}' execution failed: "
-                f"{exc}"
-            ) from exc
+            return ToolResult(
+                success=False,
+                tool_name=tool_name,
+                data=None,
+                error=str(exc),
+            )
 
-        # ---------------------------------------------------------
-        # Return normalized result
-        # ---------------------------------------------------------
-
-        return {
-            "success": True,
-            "route_type": "TOOL",
-            "intent": route.get("intent"),
-            "tool_name": tool_name,
-            "execution_mode": route.get("execution_mode"),
-            "arguments": tool_arguments,
-            "result": result,
-        }
+        return ToolResult(
+            success=True,
+            tool_name=tool_name,
+            data=result,
+        )

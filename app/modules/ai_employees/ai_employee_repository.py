@@ -49,3 +49,15 @@ class AIEmployeeRepository:
             return await self.ai_employees.delete_one({"_id": ai_employee_id})
         except (InvalidId, TypeError):
             return None
+
+
+
+    async def get_active_by_org(self, org_id: str):
+        employee = await self.ai_employees.find_one({
+            "org_id": org_id,
+            "is_active": True,
+        })
+        if not employee:
+            employee = await self.ai_employees.find_one({"org_id": org_id})
+        return employee
+

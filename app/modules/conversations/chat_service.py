@@ -1,12 +1,15 @@
 import uuid
 from bson import ObjectId
 from bson.errors import InvalidId
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from .conversation_repository import ConversationRepository
 from app.modules.ai_employees.ai_employee_repository import AIEmployeeRepository
 from app.modules.organizations.organization_repository import OrganizationRepository
 from app.modules.customers.customer_repository import CustomerRepository
 from app.core.datetime import timestamps, utc_now
+from app.ai.graph.graph import RestaurantAgentGraph
+from app.ai.prompts.restaurant_prompt import build_system_prompt
 
 
 class ChatService:
@@ -21,6 +24,9 @@ class ChatService:
         # Per-session in-memory history cache — avoids MongoDB fetch on every voice turn
         # Key: session_id, Value: list of {role, content} message dicts
         self._history_cache: dict[str, list] = {}
+        # LangGraph agent — shared instance (built once, reused across all requests)
+        agent = RestaurantAgentGraph()
+        self._graph = agent.build()
 
     async def chat_with_employee(
         self,
@@ -131,9 +137,44 @@ class ChatService:
             "voice_id": cached_emp.get("voice_id", ""),
         } if cached_emp else None
 
-        # Custom pipeline placeholder (build your custom pipeline logic here)
+        # ── LangGraph Agent Pipeline ─────────────────────────────────────────
+        # Convert DB history (role/content dicts) → LangChain message format
+        system_prompt = build_system_prompt(cached_emp if cached_emp else employee)
+        langgraph_messages = [SystemMessage(content=system_prompt)]
+        for msg in history_messages:
+            if msg.get("role") == "user":
+                langgraph_messages.append(HumanMessage(content=msg["content"]))
+            elif msg.get("role") == "assistant":
+                langgraph_messages.append(AIMessage(content=msg["content"]))
+        # Add the current user message
+        langgraph_messages.append(HumanMessage(content=user_message))
+
+        try:
+            graph_output = await self._graph.ainvoke(
+                {
+                    "messages": langgraph_messages,
+                    "owner_id": owner_id,
+                    "business_type": employee.get("business_type", "RESTAURANT"),
+                    "ai_employee_id": employee_id,
+                    "ai_employee": cached_emp if cached_emp else employee,
+                },
+                config={"configurable": {"thread_id": active_session_id}},
+            )
+            # Extract last AI message as the reply
+            output_messages = graph_output.get("messages", [])
+            reply = ""
+            for msg in reversed(output_messages):
+                if isinstance(msg, AIMessage) and msg.content and isinstance(msg.content, str):
+                    reply = msg.content.strip()
+                    break
+            if not reply:
+                reply = "Kuch problem ho gayi, please dobara try karein."
+        except Exception as graph_err:
+            print(f"❌ Graph Error in chat_service: {graph_err}")
+            reply = "Abhi kuch technical issue hai, thodi der mein try karein."
+
         result = {
-            "reply": "Pipeline is ready for custom implementation.",
+            "reply": reply,
             "cart": [],
             "retrieved_items": []
         }

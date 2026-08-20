@@ -1,11 +1,8 @@
-from .restaurant.tools import RestaurantTools
+from .restaurant.langchain_tools import (
+    RESTAURANT_TOOLS,
+)
 
-tools=RestaurantTools()
 
-RESTAURANT_TOOLS = {
-    "search_menu": tools.search_menu,
-    "get_menu_item": tools.get_menu_item,
-    "get_menu_categories": tools.get_menu_categories,
-    "get_menu_items_by_category": tools.get_menu_items_by_category,
-
+TOOL_REGISTRY = {
+    "RESTAURANT": RESTAURANT_TOOLS,
 }

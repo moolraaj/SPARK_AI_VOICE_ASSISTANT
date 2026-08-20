@@ -1,6 +1,6 @@
 from openai import AsyncOpenAI
 
-from app.core.config import OPENAI_API_KEY
+from app.core.config import OPENAI_API_KEY, MODEL_NAME
 from app.ai.models.intent_output import IntentRouterOutput
 
 from app.ai.prompts.common_prompt import COMMON_INTENT_PROMPT
@@ -64,7 +64,7 @@ CUSTOMER MESSAGE:
 """
 
         response = await self.client.responses.parse(
-            model="gpt-5.6",
+            model=MODEL_NAME,
             input=[
                 {
                     "role": "system",
