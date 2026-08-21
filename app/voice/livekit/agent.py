@@ -25,6 +25,12 @@ class RestaurantVoiceAgent(Agent):
     par turant TTS ko bhej diya jaata hai. Poore graph output ka wait NAHI
     kiya jaata — isse audio pehle sentence ke baad hi shuru ho jaata hai,
     instead of poora reply generate hone tak silence.
+
+    NOTE (FIXED): LangGraph ka MemorySaver checkpointer already thread_id
+    ke against poori conversation history maintain karta hai. Isliye har
+    call pe humein sirf NAYA message bhejna hai — poori history dobara
+    bhejna checkpoint ke saath merge/duplicate ho jaata hai aur context
+    turn-by-turn balloon karta hai, jisse latency badhti jaati hai.
     """
 
     def __init__(
@@ -44,7 +50,11 @@ class RestaurantVoiceAgent(Agent):
         self._emp_id     = ai_employee_id
         self._emp_data   = employee_data
         self._session_id = session_id
-        self._messages   = [SystemMessage(content=system_prompt)]
+
+        # NOTE: Ab yeh sirf LOGGING/debugging ke liye hai.
+        # Graph ko yeh poori list kabhi bhi pass NAHI ki jaati —
+        # graph apni state checkpointer (thread_id) se khud maintain karta hai.
+        self._local_history = [SystemMessage(content=system_prompt)]
 
         logger.info(
             "RestaurantVoiceAgent ready | session=%s | employee=%s",
@@ -65,7 +75,7 @@ class RestaurantVoiceAgent(Agent):
 
         # Special marker: LangGraph ko batata hai ki call abhi shuru hui hai
         start_message = HumanMessage(content="[CALL_START] Greet the customer naturally.")
-        self._messages.append(start_message)
+        self._local_history.append(start_message)
 
         buffer = ""
         spoke_anything = False
@@ -74,7 +84,10 @@ class RestaurantVoiceAgent(Agent):
         try:
             async for event in self._graph.astream_events(
                 {
-                    "messages":       self._messages,
+                    # FIXED: sirf naya message bhejo, poori history nahi.
+                    # Checkpointer (thread_id) pehle se hi system prompt +
+                    # history maintain kar raha hai.
+                    "messages":       [start_message],
                     "owner_id":       self._owner_id,
                     "business_type":  self._emp_data.get("business_type", "RESTAURANT"),
                     "ai_employee_id": self._emp_id,
@@ -111,8 +124,8 @@ class RestaurantVoiceAgent(Agent):
                 if not spoke_anything:
                     self.session.say(greeting_text, add_to_chat_ctx=False)
 
-            # Add AI greeting to history so conversation context is maintained
-            self._messages.append(AIMessage(content=greeting_text))
+            # Local history sirf logging ke liye update ho rahi hai
+            self._local_history.append(AIMessage(content=greeting_text))
             logger.info("Greeting spoken: %s", greeting_text[:80])
 
         except Exception as exc:
@@ -124,11 +137,6 @@ class RestaurantVoiceAgent(Agent):
             self.session.say(fallback, add_to_chat_ctx=False)
 
     # ── Called every time customer finishes speaking ─────────────────────────
-    # NOTE: correct LiveKit Agents hook name is `on_user_turn_completed`,
-    # not `on_user_turn`. Confirm your installed `livekit-agents` version
-    # (`pip show livekit-agents`) matches this signature — if the SDK
-    # expects (chat_ctx, new_message) instead, adjust the params below
-    # to match, but keep the streaming body as-is.
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
         """
         LiveKit 1.6.x SDK signature:
@@ -136,7 +144,6 @@ class RestaurantVoiceAgent(Agent):
             new_message: llm.ChatMessage   ← user ka transcribed text
 
         user_text = new_message.text_content  ← correct way
-        (NOT getattr(ev, 'transcript') — ChatMessage me ye attribute nahi hota)
         """
         user_text: str = (new_message.text_content or "").strip()
 
@@ -145,7 +152,8 @@ class RestaurantVoiceAgent(Agent):
 
         logger.info("Customer said: %s", user_text)
 
-        self._messages.append(HumanMessage(content=user_text))
+        new_user_message = HumanMessage(content=user_text)
+        self._local_history.append(new_user_message)
 
         turn_start = time.perf_counter()
         first_chunk_time = None
@@ -156,7 +164,13 @@ class RestaurantVoiceAgent(Agent):
         try:
             async for event in self._graph.astream_events(
                 {
-                    "messages":       self._messages,
+                    # FIXED: sirf naya user message bhejo — checkpointer
+                    # already purani history ko thread_id ke against
+                    # maintain kar raha hai. Poori self._local_history
+                    # bhejne se add_messages reducer duplicate/merge
+                    # karta jaata hai aur context har turn ke saath
+                    # balloon hota hai → latency badhti jaati hai.
+                    "messages":       [new_user_message],
                     "owner_id":       self._owner_id,
                     "business_type":  self._emp_data.get("business_type", "RESTAURANT"),
                     "ai_employee_id": self._emp_id,
@@ -187,16 +201,14 @@ class RestaurantVoiceAgent(Agent):
                             buffer = ""
 
                 # Tool call chal raha hai — reasoning ke liye, latency
-                # tracking me useful (logs se dikh jaayega tool round-trip
-                # kitna time le raha hai).
+                # tracking me useful.
                 elif kind == "on_tool_start":
                     logger.info(
                         "Tool call started: %s | args=%s",
                         event.get("name"), event.get("data", {}).get("input"),
                     )
 
-            # Bache hue buffer (agar last chunk sentence-end pe khatam
-            # nahi hua) ko bhi bolna zaroori hai.
+            # Bache hue buffer ko bhi bolna zaroori hai.
             if buffer.strip():
                 self.session.say(buffer.strip(), add_to_chat_ctx=False)
                 spoke_anything = True
@@ -208,7 +220,7 @@ class RestaurantVoiceAgent(Agent):
                 if not spoke_anything:
                     self.session.say(full_reply, add_to_chat_ctx=False)
 
-            self._messages.append(AIMessage(content=full_reply))
+            self._local_history.append(AIMessage(content=full_reply))
 
             total_ms = (time.perf_counter() - turn_start) * 1000
             ttft_ms = (
