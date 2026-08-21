@@ -64,7 +64,8 @@ app.add_exception_handler(
     Exception,
     global_exception_handler
 )
-@app.get("/test")
+
+@app.get("/healthy")
 async def home():
     return {
         "message": "Spark AI Assistant Running"

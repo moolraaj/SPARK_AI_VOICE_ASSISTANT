@@ -1,5 +1,5 @@
 # ==========================================
-# FastAPI
+# Web Framework
 # ==========================================
 fastapi
 uvicorn[standard]
@@ -12,80 +12,72 @@ pydantic-settings
 email-validator
 
 # ==========================================
-# MongoDB
+# Database — MongoDB
 # ==========================================
 motor
 pymongo
 
 # ==========================================
-# Redis
+# Database — Redis
 # ==========================================
 redis[hiredis]
+
+# ==========================================
+# Database — Vector Store
+# ==========================================
+qdrant-client
+langchain-qdrant
 
 # ==========================================
 # Authentication & Security
 # ==========================================
 PyJWT
-python-jose[cryptography]
 passlib[argon2]
 argon2-cffi
 python-multipart
 
 # ==========================================
-# Environment
+# Environment & Configuration
 # ==========================================
 python-dotenv
 
 # ==========================================
-# Logging
-# ==========================================
-loguru
-
-# ==========================================
-# AI
+# AI — OpenAI
 # ==========================================
 openai
-tiktoken
 
 # ==========================================
-# LangChain
+# AI — LangChain & LangGraph
 # ==========================================
 langchain
 langchain-core
 langchain-community
 langchain-openai
 langgraph
-langsmith
 
 # ==========================================
-# Vector Database
-# ==========================================
-qdrant-client
-
-# ==========================================
-# Embeddings
+# AI — Embeddings
 # ==========================================
 sentence-transformers
 
 # ==========================================
-# Document Parsing
-# ==========================================
-pypdf
-python-docx
-openpyxl
-unstructured
-
-# ==========================================
-# Voice
+# Voice — STT / TTS / LiveKit
 # ==========================================
 deepgram-sdk
 livekit
 livekit-api
-livekit-agents[deepgram,silero]
+livekit-agents[deepgram,sarvam,silero]
 websockets
 
 # ==========================================
-# HTTP
+# Document Parsing (RAG / Uploads)
+# ==========================================
+pypdf
+python-docx
+openpyxl
+
+# ==========================================
+# HTTP Clients
 # ==========================================
 httpx
 requests
@@ -96,21 +88,7 @@ requests
 orjson
 tenacity
 aiofiles
-
-# ==========================================
-# Scheduling
-# ==========================================
-apscheduler
-
-# ==========================================
-# Date & Time
-# ==========================================
 python-dateutil
-
-# ==========================================
-# UUID
-# ==========================================
-uuid6
 
 # ==========================================
 # Testing
@@ -119,29 +97,9 @@ pytest
 pytest-asyncio
 
 # ==========================================
-# Code Quality
+# Development Tools (optional)
 # ==========================================
 black
 isort
 flake8
-
-# ==========================================
-# Optional (Development)
-# ==========================================
 ipython
-
-unstructured[pdf]
-pi-heif
-unstructured-inference
-tesseract-ocr
-tesseract-ocr-hin
-tesseract-ocr-eng
-
-
-boto3
-amazon-textract-textractor
-amazon-textract-caller
-pymupdf
-langchain-qdrant 
-paddleocr
-

@@ -1,0 +1,12 @@
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: true
+
+redis:
+  address: 127.0.0.1:6379
+
+keys:
+  APIEDFrkFz6pNKk: fgT6fkifHfaLGBBT8wpUZzNaOTNZ69etiHsyblwJV1YE
