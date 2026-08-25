@@ -103,3 +103,4 @@ black
 isort
 flake8
 ipython
+python-jose[cryptography]

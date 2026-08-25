@@ -5,6 +5,15 @@ from ....modules.catalogs.catalog_service import CatalogService
 from app.rag.vectorstore.qdrant_store import qdrant_store
 
 
+# ── Voice response size ───────────────────────────────────────────────
+# Voice pe zyada items bolna confusing hota hai.
+# Yeh constant control karta hai ki tool ek baar mein
+# maximum kitne items/categories LLM ko de.
+# DB mein saare items rahenge — sirf LLM ko dene wala
+# slice yahan se control hota hai.
+VOICE_RES_COUNT: int = 3
+
+
 class RestaurantTools:
 
     def __init__(self):
@@ -14,7 +23,7 @@ class RestaurantTools:
         self,
         owner_id: str,
         query: str,
-        top_k: int = 5,
+        top_k: int = VOICE_RES_COUNT,   # default = VOICE_RES_COUNT
     ) -> dict[str, Any]:
         """
         Semantically search the restaurant menu.
@@ -196,15 +205,21 @@ class RestaurantTools:
             db_ms = (time.perf_counter() - t0) * 1000
             print(f"⏱️ DB (MongoDB) Latency [get_menu_categories]: {db_ms:.2f} ms ({db_ms/1000:.3f}s)")
 
-            category_names = [
+            all_category_names = [
                 cat.get("name") if isinstance(cat, dict) else str(cat)
                 for cat in categories
             ]
 
+            total          = len(all_category_names)
+            sliced         = all_category_names[:VOICE_RES_COUNT]
+            has_more       = total > VOICE_RES_COUNT
+
             return {
-                "success": True,
-                "count": len(category_names),
-                "categories": category_names,
+                "success":         True,
+                "count":           len(sliced),
+                "total_available": total,
+                "has_more":        has_more,
+                "categories":      sliced,
             }
 
         except Exception as e:
@@ -260,10 +275,12 @@ class RestaurantTools:
 
         if not items:
             return {
-                "success": True,
+                "success":      True,
                 "category_name": category_name,
-                "count": 0,
-                "items": [],
+                "count":        0,
+                "has_more":     False,
+                "total_available": 0,
+                "items":        [],
                 "message": (
                     f"No menu items found in "
                     f"'{category_name}'."
@@ -273,15 +290,21 @@ class RestaurantTools:
         trimmed_items = [
             {
                 "item_name": item.get("item_name"),
-                "price": item.get("price"),
-                "is_veg": item.get("is_veg", True),
+                "price":     item.get("price"),
+                "is_veg":    item.get("is_veg", True),
             }
             for item in items
         ]
 
+        total    = len(trimmed_items)
+        sliced   = trimmed_items[:VOICE_RES_COUNT]
+        has_more = total > VOICE_RES_COUNT
+
         return {
-            "success": True,
-            "category_name": category_name,
-            "count": len(trimmed_items),
-            "items": trimmed_items,
+            "success":         True,
+            "category_name":   category_name,
+            "count":           len(sliced),
+            "total_available": total,
+            "has_more":        has_more,
+            "items":           sliced,
         }

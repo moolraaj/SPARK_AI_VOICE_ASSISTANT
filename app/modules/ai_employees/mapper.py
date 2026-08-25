@@ -9,6 +9,7 @@ def ai_employee_response(ai: dict) -> dict:
         "language":         ai["language"],
         "greeting_message": ai.get("greeting_message"),
         "voice_id":         ai.get("voice_id"),
+        "system_prompt":    ai.get("system_prompt"),   # VAPI-style custom prompt
         "is_active":        ai["is_active"],
         "created_at":       ai["created_at"],
         "updated_at":       ai["updated_at"],

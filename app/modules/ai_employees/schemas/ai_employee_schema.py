@@ -32,6 +32,7 @@ class AIEmployee(BaseModel):
     language:         str
     greeting_message: Optional[str] = None
     voice_id:         Optional[str] = None
+    system_prompt:    Optional[str] = None   # Custom VAPI-style prompt from dashboard
     is_active:        bool = True
     created_at:       datetime
     updated_at:       datetime
@@ -47,18 +48,20 @@ class CreateAIEmployeeRequest(BaseModel):
     language:         str = Field(default="en")
     greeting_message: Optional[str] = None
     voice_id:         Optional[str] = None
+    system_prompt:    Optional[str] = None   # Free-form custom prompt (VAPI-style)
 
 
 # ─── Update Request ───────────────────────────────────────────────────────────
 
 class UpdateAIEmployeeRequest(BaseModel):
-    name:             Optional[str]              = Field(None, min_length=2, max_length=100)
-    role:             Optional[AIEmployeeRole]   = None
+    name:             Optional[str]               = Field(None, min_length=2, max_length=100)
+    role:             Optional[AIEmployeeRole]    = None
     persona:          Optional[AIEmployeePersona] = None
-    language:         Optional[str]              = None
-    greeting_message: Optional[str]              = None
-    voice_id:         Optional[str]              = None
-    is_active:        Optional[bool]             = None
+    language:         Optional[str]               = None
+    greeting_message: Optional[str]               = None
+    voice_id:         Optional[str]               = None
+    is_active:        Optional[bool]              = None
+    system_prompt:    Optional[str]               = None   # Update custom prompt
 
 
 # ─── Response ─────────────────────────────────────────────────────────────────
@@ -73,6 +76,7 @@ class AIEmployeeResponse(BaseModel):
     language:         str
     greeting_message: Optional[str]
     voice_id:         Optional[str]
+    system_prompt:    Optional[str]               # Custom prompt configured from dashboard
     is_active:        bool
     created_at:       datetime
     updated_at:       datetime

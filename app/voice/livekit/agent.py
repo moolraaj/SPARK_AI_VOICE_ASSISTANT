@@ -61,9 +61,17 @@ class RestaurantVoiceAgent(Agent):
             session_id, ai_employee_id,
         )
 
-    # ── Greet customer when call connects — LLM generates the greeting ────────
+    # ── Greet customer when call connects ────────────────────────────────────
     async def on_enter(self) -> None:
-        await self._greet_via_llm()
+        greeting = (self._emp_data.get("greeting_message") or "").strip()
+        if greeting:
+            # Direct TTS — no LLM call needed.
+            # This saves ~500-800ms on the very first turn of every call.
+            self.session.say(greeting, add_to_chat_ctx=False)
+            logger.info("Greeting spoken (direct): %s", greeting[:80])
+        else:
+            # Fallback: LLM generates the greeting from persona context.
+            await self._greet_via_llm()
 
     async def _greet_via_llm(self) -> None:
         """

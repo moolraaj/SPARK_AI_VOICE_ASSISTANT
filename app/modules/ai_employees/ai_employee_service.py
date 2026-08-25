@@ -134,6 +134,7 @@ class AIEmployeeService:
             "language":         request.language,
             "greeting_message": request.greeting_message,
             "voice_id":         request.voice_id,
+            "system_prompt":    request.system_prompt,  # VAPI-style custom prompt
             "is_active":        True,
             **timestamps(),
         }

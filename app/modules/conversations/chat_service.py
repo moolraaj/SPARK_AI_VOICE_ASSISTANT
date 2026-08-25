@@ -11,6 +11,9 @@ from app.core.datetime import timestamps, utc_now
 from app.ai.graph.graph import RestaurantAgentGraph
 from app.ai.prompts.restaurant_prompt import build_system_prompt
 
+# Simple TTL for employee cache entries (seconds)
+_EMP_CACHE_TTL = 300  # 5 minutes
+
 
 class ChatService:
 
@@ -19,12 +22,13 @@ class ChatService:
         self.ai_employee_repo = AIEmployeeRepository()
         self.org_repo = OrganizationRepository()
         self.customer_repo = CustomerRepository()
+        # Employee cache: key → {employee, owner_id, org_name, cached_at}
+        # Invalidated after _EMP_CACHE_TTL seconds so dashboard updates are reflected.
         self._emp_cache: dict[str, dict] = {}
         self._cust_cache: dict[str, str] = {}
-        # Per-session in-memory history cache — avoids MongoDB fetch on every voice turn
-        # Key: session_id, Value: list of {role, content} message dicts
-        self._history_cache: dict[str, list] = {}
         # LangGraph agent — shared instance (built once, reused across all requests)
+        # NOTE: MemorySaver inside the graph already tracks full conversation history
+        # per thread_id. We do NOT need a separate history cache here.
         agent = RestaurantAgentGraph()
         self._graph = agent.build()
 
@@ -36,9 +40,13 @@ class ChatService:
         customer_phone_number: str | None = None,
         customer_name: str | None = None
     ) -> dict:
-        # Check in-memory employee cache to skip DB roundtrips on every turn
+        # Employee cache with TTL — re-fetch from DB if cache is stale
+        # This ensures dashboard updates (name, persona, system_prompt) are reflected.
+        import time as _time
         cached_info = self._emp_cache.get(employee_id)
-        if cached_info:
+        cache_age = _time.time() - cached_info.get("cached_at", 0) if cached_info else _EMP_CACHE_TTL + 1
+
+        if cached_info and cache_age < _EMP_CACHE_TTL:
             employee = cached_info["employee"]
             owner_id = cached_info["owner_id"]
         else:
@@ -63,7 +71,12 @@ class ChatService:
             if not owner_id:
                 return {"success": False, "message": "Could not resolve owner organization for this AI employee."}
 
-            self._emp_cache[employee_id] = {"employee": employee, "owner_id": owner_id, "org_name": biz_name or ""}
+            self._emp_cache[employee_id] = {
+                "employee":  employee,
+                "owner_id":  owner_id,
+                "org_name":  biz_name or "",
+                "cached_at": _time.time(),
+            }
 
         # Auto-upsert customer record (cached per session/phone to avoid repeated queries)
         customer_id = None
@@ -113,50 +126,39 @@ class ChatService:
         if not active_session_id:
             active_session_id = f"session_{uuid.uuid4().hex[:12]}"
 
-        # Fetch chat history for session — use in-memory cache to skip MongoDB on repeated turns
-        if active_session_id in self._history_cache:
-            history_messages = self._history_cache[active_session_id]
-        else:
-            conversation = await self.conversation_repo.get_by_session_id(active_session_id)
-            history_messages = conversation.get("messages", []) if conversation else []
-            # Seed the cache with existing history from DB
-            self._history_cache[active_session_id] = list(history_messages)
-
-        # Build employee_config from cache to pass into graph (skips graph's node_load_employee_config DB calls)
-        # org_name is already stored in _emp_cache from the first turn — no extra DB call needed
-        cached_emp_info = self._emp_cache.get(employee_id, {})
-        cached_emp = cached_emp_info.get("employee", {})
-        cached_org_name = cached_emp_info.get("org_name", "")
-        pre_resolved_config = {
-            "name": cached_emp.get("name", ""),
-            "business_name": cached_org_name or cached_emp.get("business_name", ""),
-            "role": cached_emp.get("role", ""),
-            "persona": cached_emp.get("persona", ""),
-            "language": cached_emp.get("language", "en"),
-            "greeting_message": cached_emp.get("greeting_message", ""),
-            "voice_id": cached_emp.get("voice_id", ""),
-        } if cached_emp else None
-
         # ── LangGraph Agent Pipeline ─────────────────────────────────────────
-        # Convert DB history (role/content dicts) → LangChain message format
-        system_prompt = build_system_prompt(cached_emp if cached_emp else employee)
-        langgraph_messages = [SystemMessage(content=system_prompt)]
-        for msg in history_messages:
-            if msg.get("role") == "user":
-                langgraph_messages.append(HumanMessage(content=msg["content"]))
-            elif msg.get("role") == "assistant":
-                langgraph_messages.append(AIMessage(content=msg["content"]))
-        # Add the current user message
-        langgraph_messages.append(HumanMessage(content=user_message))
+        # FIXED: Only send the NEW user message to the graph.
+        # LangGraph's MemorySaver checkpointer already holds the full conversation
+        # history for this thread_id. Sending the complete history again causes
+        # the add_messages reducer to produce DUPLICATES on every turn:
+        # Turn 5 → MemorySaver has T1-T4, we'd send T1-T4 again + T5 = T1-T4 appear twice.
+        # This was doubling token counts and causing context drift.
+        cached_emp_info = self._emp_cache.get(employee_id, {})
+        cached_emp     = cached_emp_info.get("employee", {})
+        org_name       = cached_emp_info.get("org_name", "")
+
+        # First turn of a session: inject SystemMessage so the graph initialises
+        # with the correct employee persona. On subsequent turns MemorySaver already
+        # has it — but injecting it again is harmless because nodes.py checks for
+        # an existing SystemMessage before prepending a new one.
+        #
+        # Enrich active_emp with restaurant_name so {restaurant_name} placeholder
+        # resolves correctly inside build_system_prompt (both custom & fallback paths).
+        base_emp    = cached_emp if cached_emp else employee
+        active_emp  = {**base_emp, "restaurant_name": org_name or base_emp.get("restaurant_name", "")}
+        system_prompt = build_system_prompt(active_emp)
+
+        new_user_message = HumanMessage(content=user_message)
 
         try:
             graph_output = await self._graph.ainvoke(
                 {
-                    "messages": langgraph_messages,
-                    "owner_id": owner_id,
-                    "business_type": employee.get("business_type", "RESTAURANT"),
+                    # Only the new message — history lives in MemorySaver (thread_id)
+                    "messages":       [SystemMessage(content=system_prompt), new_user_message],
+                    "owner_id":       owner_id,
+                    "business_type":  employee.get("business_type", "RESTAURANT"),
                     "ai_employee_id": employee_id,
-                    "ai_employee": cached_emp if cached_emp else employee,
+                    "ai_employee":    active_emp,
                 },
                 config={"configurable": {"thread_id": active_session_id}},
             )
@@ -194,12 +196,10 @@ class ChatService:
             customer_id=customer_id
         )
 
-        # Update in-memory cache with new turn (cap at last 20 messages to bound memory)
-        session_history = self._history_cache.setdefault(active_session_id, [])
-        session_history.append({"role": "user", "content": user_message})
-        session_history.append({"role": "assistant", "content": reply})
-        if len(session_history) > 20:
-            self._history_cache[active_session_id] = session_history[-20:]
+        # NOTE: No in-memory history cache needed here.
+        # LangGraph MemorySaver (thread_id) is the single source of truth for
+        # conversation state during an active session. MongoDB is the persistence
+        # layer for analytics/display — not for feeding the LLM.
 
         return {
             "success": True,
