@@ -34,6 +34,7 @@ from app.modules.conversations.chat_route import (
     conversation_router,
 )
 from app.modules.customers.customer_route import customers_router, customer_router
+from app.modules.ocr.ocr_route import ocr_router
 
 
 api_router = APIRouter(prefix="/api/v1")
@@ -69,3 +70,5 @@ api_router.include_router(conversation_router)
 
 api_router.include_router(customers_router)
 api_router.include_router(customer_router)
+
+api_router.include_router(ocr_router)

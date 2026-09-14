@@ -104,3 +104,7 @@ isort
 flake8
 ipython
 python-jose[cryptography]
+
+
+ocrmypdf
+ 

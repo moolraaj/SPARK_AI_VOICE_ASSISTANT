@@ -1,0 +1,355 @@
+Category,Subcategory,Item Name,Price (PKR)
+HOT BEVERAGES,,Tea (Regular / Black),50
+HOT BEVERAGES,,Saffron Milk / Kesar,180
+HOT BEVERAGES,,Lemon / Ginger / Masala / Green Tea,70
+HOT BEVERAGES,,Honey Ginger Lemon,90
+HOT BEVERAGES,,Coffee (Regular / Black),80
+HOT BEVERAGES,,Hazelnut Coffee,130
+HOT BEVERAGES,,Hot Chocolate,150
+HOT BEVERAGES,,Hazelnut Hot Chocolate,190
+HOT BEVERAGES,,Coffee with Marshmallows,140
+HOT BEVERAGES,,Hot Chocolate with Marshmallows,190
+COLD BEVERAGES,,Mojito,180
+COLD BEVERAGES,,Flavored Mojito,210
+COLD BEVERAGES,,Cold Coffee Plain,170
+COLD BEVERAGES,,Cold Coffee with Ice Cream,210
+COLD BEVERAGES,,Hazelnut Cold Coffee,230
+COLD BEVERAGES,,Ice Tea (Lemon / Mint),140
+COLD BEVERAGES,,Peach Ice Tea,160
+COLD BEVERAGES,,Lassi Sweet / Salted,130
+COLD BEVERAGES,,Masala Lassi,150
+COLD BEVERAGES,,Flavored Lassi,160
+COLD BEVERAGES,,Fresh Lime Water (Sweet / Salted / Mix),90
+COLD BEVERAGES,,Fresh Lime Soda (Sweet / Salted / Mix),120
+COLD BEVERAGES,,Masala Lemonade,150
+COLD BEVERAGES,,Aerated Drinks (Coke / Sprite / Limca / Dew),60
+COLD BEVERAGES,,Canned Juice / Diet Coke,90
+COLD BEVERAGES,,Red Bull,180
+SHAKES,,Banana / Chocolate / Strawberry Shake,150
+SHAKES,,Kiwi / Black Currant / Butterscotch / Mango Shake,180
+SHAKES,,Kitkat / Oreo / Bubblegum Shake,190
+SHAKES,,Kesar Badam / Cotton Candy Shake,200
+SHAKES,,Kulfi Falooda Shake,220
+SHAKES,,Brownie Shake,240
+SHAKES,,Brownie Bubblegum Shake,260
+SMOOTHIES,,Banana / Strawberry Smoothie,180
+SMOOTHIES,,Kiwi / Mango Smoothie,200
+SMOOTHIES,,Honey Banana Smoothie,220
+BREAKFAST,PARATHA,Plain Paratha,60
+BREAKFAST,PARATHA,Aloo Paratha (1 Piece),80
+BREAKFAST,PARATHA,Aloo Pyaz Paratha (1 Piece),80
+BREAKFAST,PARATHA,Gobhi Paratha (1 Piece),90
+BREAKFAST,PARATHA,Mix Paratha (1 Piece),90
+BREAKFAST,PARATHA,Paneer Paratha (1 Piece),120
+BREAKFAST,EXTRA,Butter,30
+BREAKFAST,EXTRA,Plain Curd,90
+BREAKFAST,EXTRA,Butter Toast,100
+BREAKFAST,EXTRA,Extra Bhatura / Poori,50
+BREAKFAST,CHAAT,Chana Bhatura (2 Piece),180
+BREAKFAST,CHAAT,Chana Poori / Poori Bhaji (3 Piece),180
+BREAKFAST,SNACKS,Bread Pakora (2 Piece),110
+BREAKFAST,EGGS,Egg Bhurjee (2 Eggs),130
+BREAKFAST,EGGS,Fried Egg / Boiled Eggs (2 Eggs),100
+BREAKFAST,EGGS,Masala Omelette,140
+BREAKFAST,EGGS,Cheese Omelette,160
+BREAKFAST,EGGS,Bread Omelette,170
+BREAKFAST,EGGS,Spinach Corn Cheese Omelette,190
+BREAKFAST,EGGS,Scrambled Eggs on Toast,180
+BREAKFAST,EGGS,Mushrooms on Toast,180
+BREAKFAST,SOUTH INDIAN,Idli Sambar,160
+BREAKFAST,SOUTH INDIAN,Vada Sambar,170
+BREAKFAST,SANDWICH BAR,Plain Vegetable Sandwich,140
+BREAKFAST,SANDWICH BAR,Plain Cheese Sandwich,130
+BREAKFAST,SANDWICH BAR,Coleslaw Sandwich,150
+BREAKFAST,SANDWICH BAR,Chicken Coleslaw Sandwich,240
+BREAKFAST,GRILLED SANDWICHES,Vegetable Grilled Sandwich,180
+BREAKFAST,GRILLED SANDWICHES,Vegetable Cheese Grilled Sandwich,190
+BREAKFAST,GRILLED SANDWICHES,Masala Aloo Pyaz Grilled Sandwich,160
+BREAKFAST,GRILLED SANDWICHES,Tandoori Paneer Tikka Grilled Sandwich,230
+BREAKFAST,GRILLED SANDWICHES,Corn Cheese Grilled Sandwich,230
+BREAKFAST,GRILLED SANDWICHES,Olive Cheese Grilled Sandwich,230
+BREAKFAST,GRILLED SANDWICHES,Mexican Jalapeno Corn Cheese Sandwich,250
+BREAKFAST,GRILLED SANDWICHES,Chicken Grilled Sandwich,280
+BREAKFAST,AMERICAN PANCAKES,American Pancakes,190
+BREAKFAST,AMERICAN PANCAKES,American Pancakes with Ice Cream,230
+BREAKFAST,AMERICAN PANCAKES,Flavored Pancakes,250
+BREAKFAST,AMERICAN PANCAKES,Flavored Pancakes with Ice Cream,290
+SNACK BITES,STARTERS,Vegetable Pakora,180
+SNACK BITES,STARTERS,Paneer Pakora (8 Pieces),220
+SNACK BITES,STARTERS,Chili Cheese Toast,180
+SNACK BITES,STARTERS,Stuffed Cheese Garlic Bread,260
+SNACK BITES,STARTERS,French Fries,180
+SNACK BITES,STARTERS,Cheesy Fries,220
+SNACK BITES,STARTERS,Peri Peri Fries,200
+BURGERS,VEG,Veg Patty Burger,80
+BURGERS,VEG,Vegetable Burger,110
+BURGERS,VEG,Vegetable Cheese Burger,130
+BURGERS,VEG,Grilled Cottage Cheese Burger,180
+BURGERS,VEG,Vegetable Feast Burger,180
+BURGERS,CHICKEN,Chicken Burger,220
+BURGERS,CHICKEN,Butter Chicken Burger,240
+BURGERS,CHICKEN,Grilled Chicken Burger,240
+BURGERS,CHICKEN,Chicken Feast Burger,280
+BURGERS,EXTRA,Extra Dip,30
+BURGERS,EXTRA,Extra Cheese,30
+PASTA,PASTA,Penne / Fusilli Sauces - Arrabiata (Red),260
+PASTA,PASTA,Vegetable Corn Mushroom,290
+PASTA,PASTA,Chicken Pasta,340
+PASTA,EXTRA,For Mix Sauce Extra,50
+PASTA,EXTRA,For Spaghetti or Alfredo (White) Extra,60
+QUESADILLAS,VEG,Vegetable Quesadillas,290
+QUESADILLAS,VEG,Spinach Corn Mushroom Quesadillas,320
+QUESADILLAS,CHICKEN,Chicken Quesadillas,360
+QUESADILLAS,CHICKEN,Butter Chicken Quesadillas,390
+WRAPS / ROLLS / FRANKIE,VEG,Vegetable Paneer Frankie,170
+WRAPS / ROLLS / FRANKIE,VEG,Corn Olives Cheese Frankie,200
+WRAPS / ROLLS / FRANKIE,EGG,Egg Frankie,180
+WRAPS / ROLLS / FRANKIE,CHICKEN,Chicken Frankie,240
+WRAPS / ROLLS / FRANKIE,CHICKEN,Egg Chicken Frankie,260
+WRAPS / ROLLS / FRANKIE,MUTTON,Mutton Frankie,320
+PIZZA,VEG,"Vegie Delight Trio (Small 6"")",210
+PIZZA,VEG,"Vegie Delight Trio (Medium 8"")",320
+PIZZA,VEG,"Vegie Delight Trio (Large 10"")",420
+PIZZA,VEG,"Pizza Margherita (Small 6"")",210
+PIZZA,VEG,"Pizza Margherita (Medium 8"")",320
+PIZZA,VEG,"Pizza Margherita (Large 10"")",420
+PIZZA,VEG,"Corn Mushroom Pizza (Small 6"")",250
+PIZZA,VEG,"Corn Mushroom Pizza (Medium 8"")",360
+PIZZA,VEG,"Corn Mushroom Pizza (Large 10"")",460
+PIZZA,VEG,"Fresh Farmhouse Pizza (Small 6"")",310
+PIZZA,VEG,"Fresh Farmhouse Pizza (Medium 8"")",420
+PIZZA,VEG,"Fresh Farmhouse Pizza (Large 10"")",520
+PIZZA,VEG,"Tandoori Paneer Tikka Pizza (Small 6"")",290
+PIZZA,VEG,"Tandoori Paneer Tikka Pizza (Medium 8"")",400
+PIZZA,VEG,"Tandoori Paneer Tikka Pizza (Large 10"")",500
+PIZZA,VEG,"Paneer Makhani Pizza (Small 6"")",290
+PIZZA,VEG,"Paneer Makhani Pizza (Medium 8"")",400
+PIZZA,VEG,"Paneer Makhani Pizza (Large 10"")",500
+PIZZA,VEG,"Chili Paneer Pizza (Small 6"")",290
+PIZZA,VEG,"Chili Paneer Pizza (Medium 8"")",400
+PIZZA,VEG,"Chili Paneer Pizza (Large 10"")",500
+PIZZA,CHICKEN,"Chicken Salami Pizza (Small 6"")",320
+PIZZA,CHICKEN,"Chicken Salami Pizza (Medium 8"")",420
+PIZZA,CHICKEN,"Chicken Salami Pizza (Large 10"")",520
+PIZZA,CHICKEN,"Chicken Lovers Pizza (Small 6"")",320
+PIZZA,CHICKEN,"Chicken Lovers Pizza (Medium 8"")",420
+PIZZA,CHICKEN,"Chicken Lovers Pizza (Large 10"")",520
+PIZZA,CHICKEN,"Butter Chicken Pizza (Small 6"")",360
+PIZZA,CHICKEN,"Butter Chicken Pizza (Medium 8"")",460
+PIZZA,CHICKEN,"Butter Chicken Pizza (Large 10"")",560
+PIZZA,MUTTON,"Mutton Seekh Pizza (Small 6"")",390
+PIZZA,MUTTON,"Mutton Seekh Pizza (Medium 8"")",500
+PIZZA,MUTTON,"Mutton Seekh Pizza (Large 10"")",600
+PIZZA,EXTRA,"Extra Cheese (Small 6"")",50
+PIZZA,EXTRA,"Extra Cheese (Medium 8"")",70
+PIZZA,EXTRA,"Extra Cheese (Large 10"")",90
+PIZZA,EXTRA,"Extra Topping (Small 6"")",40
+PIZZA,EXTRA,"Extra Topping (Medium 8"")",60
+PIZZA,EXTRA,"Extra Topping (Large 10"")",80
+CHINESE,STARTERS,Honey Chili Potatoes,280
+CHINESE,STARTERS,Honey Chili Cauliflower,280
+CHINESE,STARTERS,Vegetable Springrolls,250
+CHINESE,STARTERS,Crispy Crackling Corns,280
+CHINESE,STARTERS,Chili Paneer (Dry / Gravy),290
+CHINESE,STARTERS,Chili Mushroom (Dry / Gravy),290
+CHINESE,STARTERS,Chili Soya Chaap (Dry / Gravy),280
+CHINESE,STARTERS,Vegetable Manchurian (Dry / Gravy),270
+CHINESE,STARTERS,Chicken Springrolls,290
+CHINESE,STARTERS,Spicy Garlic Wings,360
+CHINESE,STARTERS,Hot Garlic Chicken Drumsticks,380
+CHINESE,NOODLES,Veg Noodles / Szechuan Noodles,210
+CHINESE,NOODLES,Chili Garlic Noodles,230
+CHINESE,NOODLES,Egg Noodles,240
+CHINESE,NOODLES,Chicken Noodles / Szechuan,270
+CHINESE,RICE,Veg Fried Rice / Szechuan Fried Rice,240
+CHINESE,RICE,Corn Mushroom Fried Rice,260
+CHINESE,RICE,Egg Fried Rice,260
+CHINESE,RICE,Chicken Fried Rice / Szechuan,290
+CHINESE,MAIN COURSE,Vegetables in Hot Garlic Sauce,270
+CHINESE,MAIN COURSE,Chili Chicken (Dry / Gravy) With Bone,360
+CHINESE,MAIN COURSE,Chili Chicken Boneless (Dry / Gravy),380
+CHINESE,MAIN COURSE,Chicken Manchurian (Dry / Gravy),360
+CHINESE,MAIN COURSE,Lemon Chicken (Dry / Gravy),380
+CHINESE,MAIN COURSE,Sliced Chicken in Hot Garlic Sauce,390
+MOMOS (8 PCS),VEG,Steamed Veg Momos,160
+MOMOS (8 PCS),VEG,Fried Veg Momos,180
+MOMOS (8 PCS),VEG,Panfried Veg Momos,220
+MOMOS (8 PCS),VEG,Chili Garlic Veg Momos,220
+MOMOS (8 PCS),VEG,Afghani Veg Momos,240
+MOMOS (8 PCS),CHICKEN,Steamed Chicken Momos,290
+MOMOS (8 PCS),CHICKEN,Fried Chicken Momos,310
+MOMOS (8 PCS),CHICKEN,Panfried Chicken Momos,330
+MOMOS (8 PCS),CHICKEN,Chili Garlic Chicken Momos,330
+MOMOS (8 PCS),CHICKEN,Afghani Chicken Momos,350
+MOMOS (8 PCS),MUTTON,Steamed Mutton Momos,390
+MOMOS (8 PCS),MUTTON,Fried Mutton Momos,410
+MOMOS (8 PCS),MUTTON,Panfried Mutton Momos,430
+MOMOS (8 PCS),MUTTON,Chili Garlic Mutton Momos,430
+MOMOS (8 PCS),MUTTON,Afghani Mutton Momos,450
+SOUPS,,Thupka Veg,190
+SOUPS,,Thupka Chicken,230
+SOUPS,,Thupka + Momos Veg,230
+SOUPS,,Thupka + Momos Chicken,280
+SOUPS,,Mutton Thupka / With Momos,360
+SOUPS,,Cream of Tomato Soup,130
+SOUPS,,Mix Vegetable Soup,130
+SOUPS,,Mushroom Soup,150
+SOUPS,,Chicken Clear Soup,170
+SOUPS,,Hot N Sour Veg Soup,130
+SOUPS,,Hot N Sour Chicken Soup,170
+SOUPS,,Sweet Corn Veg Soup,130
+SOUPS,,Sweet Corn Chicken Soup,170
+SOUPS,,Manchow Veg Soup,130
+SOUPS,,Manchow Chicken Soup,170
+SALADS & RAITA,,Green Salad / Cucumber Salad,110
+SALADS & RAITA,,Aloo Chana Chat,160
+SALADS & RAITA,,Mexican Corn Salad,190
+SALADS & RAITA,,Mix Raita,120
+SALADS & RAITA,,Aloo Mint Raita,120
+SALADS & RAITA,,Boondi Raita,120
+STARTERS,,Bar Bites Pack,390
+STARTERS,,Fried / Roasted Papad (3 Pieces),70
+STARTERS,,Masala Papad (3 Pieces),110
+STARTERS,,Masala Peanuts,150
+STARTERS,,Masala Corns,190
+STARTERS,,Hara Bhara Kebab,290
+STARTERS,,Paneer Tikka,310
+STARTERS,,Paneer Tikka Achari / Ajwaini,340
+STARTERS,,Paneer Haryali Tikka,340
+STARTERS,,Malai Paneer Tikka,360
+STARTERS,,Mushroom Tikka,320
+STARTERS,,Soya Masala Chaap,270
+STARTERS,,Soya Malai Chaap,290
+STARTERS,,Vegetable Platter (Paneer / Mushroom / Soya),490
+STARTERS,,Chicken Seekh Kebab,390
+STARTERS,,Chicken Tikka,390
+STARTERS,,Murg Malai Kebab,410
+STARTERS,,Tandoori Chicken (Half),340
+STARTERS,,Tandoori Chicken (Full),620
+STARTERS,,Peri Peri Tandoori Chicken (Half),360
+STARTERS,,Peri Peri Tandoori Chicken (Full),690
+STARTERS,,Afghani Chicken (Half),380
+STARTERS,,Afghani Chicken (Full),690
+STARTERS,,Tangdi Kebab (2 Pc),195
+STARTERS,,Tangdi Kebab (4 Pc),350
+STARTERS,,Mutton Seekh Kebab,490
+STARTERS,,Fish Tikka (Pieces),640
+STARTERS,,Non Veg Platter (Chicken + Mutton),680
+STARTERS,,Fried Drumsticks (2 Pc),195
+STARTERS,,Fried Drumsticks (4 Pc),350
+STARTERS,,Boiled Chicken,380
+STARTERS,,Chicken Pakora,380
+STARTERS,,Fried Chicken,410
+STARTERS,,Grilled Chicken,440
+STARTERS,,Fried Fish,520
+STARTERS,,Fish Fingers,520
+STARTERS,,Grilled Fish,640
+INDIAN MAIN COURSE,,Yellow Dal Tadka,220
+INDIAN MAIN COURSE,,Rajma Masala,240
+INDIAN MAIN COURSE,,Dal Makhani,260
+INDIAN MAIN COURSE,,Chana Masala,240
+INDIAN MAIN COURSE,,Kadhai Paneer,290
+INDIAN MAIN COURSE,,Paneer Lababdar,290
+INDIAN MAIN COURSE,,Paneer Butter Masala,290
+INDIAN MAIN COURSE,,Matar Paneer,290
+INDIAN MAIN COURSE,,Palak Paneer,290
+INDIAN MAIN COURSE,,Paneer Makhani,290
+INDIAN MAIN COURSE,,Paneer Do Piaza,290
+INDIAN MAIN COURSE,,Cheese Tomato,290
+INDIAN MAIN COURSE,,Shahi Paneer (White Gravy),320
+INDIAN MAIN COURSE,,Malai Kofta,320
+INDIAN MAIN COURSE,,Paneer Tikka Butter Masala,320
+INDIAN MAIN COURSE,,Paneer Bhurjee,310
+INDIAN MAIN COURSE,,Sarson Ka Saag (Seasonal),260
+INDIAN MAIN COURSE,,Soya Chaap Tawa Masala,270
+INDIAN MAIN COURSE,,Malai Tawa Chaap,290
+INDIAN MAIN COURSE,,Mushroom Curry,290
+INDIAN MAIN COURSE,,Mushroom Do Pyaza,290
+INDIAN MAIN COURSE,,Matar Mushroom Masala,290
+INDIAN MAIN COURSE,,Makai Khumb Masala,310
+INDIAN MAIN COURSE,,Bhurwaan Dum Aloo,280
+INDIAN MAIN COURSE,,Palak Corn Mushroom,290
+INDIAN MAIN COURSE,,Lahsooni Motia Palak,280
+INDIAN MAIN COURSE,,Aloo Gobhi Masala,220
+INDIAN MAIN COURSE,,Aloo Jeera,200
+INDIAN MAIN COURSE,,Mix Vegetable,230
+INDIAN MAIN COURSE,,Kadhai Vegetable,260
+INDIAN MAIN COURSE,,Egg Curry (2 Eggs),230
+INDIAN MAIN COURSE,,Butter Chicken (Qtr),260
+INDIAN MAIN COURSE,,Butter Chicken (Half),380
+INDIAN MAIN COURSE,,Butter Chicken (Full),690
+INDIAN MAIN COURSE,,Kadhai Chicken (Qtr),260
+INDIAN MAIN COURSE,,Kadhai Chicken (Half),380
+INDIAN MAIN COURSE,,Kadhai Chicken (Full),690
+INDIAN MAIN COURSE,,Chicken Curry (Qtr),260
+INDIAN MAIN COURSE,,Chicken Curry (Half),380
+INDIAN MAIN COURSE,,Chicken Curry (Full),690
+INDIAN MAIN COURSE,,Rara Chicken (Half),400
+INDIAN MAIN COURSE,,Rara Chicken (Full),720
+INDIAN MAIN COURSE,,Chicken Masala (Half),400
+INDIAN MAIN COURSE,,Chicken Masala (Full),720
+INDIAN MAIN COURSE,MURG KALI MIRCH,Murg Kali Mirch (Half),430
+INDIAN MAIN COURSE,MURG KALI MIRCH,Murg Kali Mirch (Full),760
+INDIAN MAIN COURSE,CHICKEN TIKKA BUTTERMASALA,Chicken Tikka Butter Masala (Half),440
+INDIAN MAIN COURSE,CHICKEN TIKKA BUTTERMASALA,Chicken Tikka Butter Masala (Full),760
+INDIAN MAIN COURSE,MUTTON CURRY,Mutton Curry (Half),450
+INDIAN MAIN COURSE,MUTTON CURRY,Mutton Curry (Full),820
+INDIAN MAIN COURSE,MUTTON KADHAI,Mutton Kadhai (Half),450
+INDIAN MAIN COURSE,MUTTON KADHAI,Mutton Kadhai (Full),820
+INDIAN MAIN COURSE,GHOSHT DOPYAZA,Ghosht Dopyaza (Half),450
+INDIAN MAIN COURSE,GHOSHT DOPYAZA,Ghosht Dopyaza (Full),820
+INDIAN MAIN COURSE,MUTTON ROGANJOSH,Mutton Roganjosh (Half),450
+INDIAN MAIN COURSE,MUTTON ROGANJOSH,Mutton Roganjosh (Full),820
+INDIAN MAIN COURSE,MUTTON RARA,Mutton Rara (Half),490
+INDIAN MAIN COURSE,MUTTON RARA,Mutton Rara (Full),880
+INDIAN MAIN COURSE,MUTTON MASALA,Mutton Masala (Half),490
+INDIAN MAIN COURSE,MUTTON MASALA,Mutton Masala (Full),880
+INDIAN MAIN COURSE,FISH CURRY,Fish Curry,570
+INDIAN MAIN COURSE,EXTRA,Boneless Chicken Extra (Half),50
+INDIAN MAIN COURSE,EXTRA,Boneless Chicken Extra (Full),80
+INDIAN MAIN COURSE,EXTRA,Boneless Mutton Extra (Half),100
+INDIAN MAIN COURSE,EXTRA,Boneless Mutton Extra (Full),150
+BREADS,,Aloo Tandoori Paratha,150
+BREADS,,Paneer Tandoori Paratha,180
+BREADS,,Tawa Roti,20
+BREADS,,Butter Tawa Roti,25
+BREADS,,Tandoori Roti,25
+BREADS,,Butter Tandoori Roti,30
+BREADS,,Plain Naan,65
+BREADS,,Butter Naan,75
+BREADS,,Garlic Naan,85
+BREADS,,Cheese Naan,140
+BREADS,,Laccha Paratha,65
+BREADS,,Mirchi Paratha (Red/Green),75
+BREADS,,Pudina Paratha,75
+BREADS,,Stuffed Kulcha (Aloo/Onion/Mix),100
+BREADS,,Stuffed Kulcha Paneer,140
+BREADS,,Missi Roti,65
+BREADS,,Mutton Keema Naan,250
+BREADS,,Chicken Keema Naan,220
+BREADS,,Cheese Naan with Gravy,240
+BREADS,,Amritsari Kulcha with Chana,260
+BREADS,,Vegetable Kathi Roll,170
+BREADS,,Chicken Kathi Roll,230
+RICE,,Steamed Rice,170
+RICE,,Jeera Rice,180
+RICE,,Peas Pulao,190
+RICE,,Vegetable Pulao,280
+RICE,HYDERABADI BIRYANI,Hyderabadi Vegetable Biryani (served With Raita),340
+RICE,HYDERABADI BIRYANI,Hyderabadi Egg Biryani (served With Raita),360
+RICE,HYDERABADI BIRYANI,Hyderabadi Chicken Biryani (served With Raita),430
+RICE,HYDERABADI BIRYANI,Hyderabadi Mutton Biryani (served With Raita),500
+DESSERTS,,Gulab Jamun (2 pieces),100
+DESSERTS,,Gulab Jamun with Ice Cream,120
+DESSERTS,,Gajar Halwa (Seasonal),170
+DESSERTS,,Warm Brownie,180
+DESSERTS,,Warm Brownie with Ice Cream,220
+DESSERTS,,Sizzling Brownie,250
+DESSERTS,,Vanilla Ice Cream with Chocolate Sauce,100
+MEALS,VEG THALI,Veg Thali (Dal + Veg + Rice + 2 Roti + Raita + Salad),220
+MEALS,VEG THALI,Deluxe Veg Thali (Dal + Paneer + Rice + 3 Roti + Raita + Salad),260
+MEALS,VEG THALI,Executive Veg Thali (Dal + Paneer + Mix Veg + Rice + 2 Laccha Paratha + Raita + Salad + Gulab Jamun),330
+MEALS,NON VEG THALI,Deluxe Non Veg Thali (Chicken + Dal + Rice + 3 Roti + Raita + Salad),330
+MEALS,NON VEG THALI,Executive Non Veg Thali (Chicken + Dal + Egg Curry + Rice + 2 Laccha Paratha + Raita + Salad + Gulab Jamun),390
+PARTY PACK,VEG PARTY PACK,Veg Party Pack - Per Person (Min 10 People),390
+PARTY PACK,NON VEG PARTY PACK,Non Veg Party Pack - Per Person (Min 10 People),490
