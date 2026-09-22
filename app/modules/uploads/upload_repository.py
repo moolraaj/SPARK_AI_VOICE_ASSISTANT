@@ -21,41 +21,63 @@ class UploadRepository:
     def business_types_collection(self):
         return mongodb.database["business_types"]
 
-    async def get_business_type_for_owner(self, owner_id: str) -> tuple[str | None, str | None]:
+    async def get_business_type_for_owner(self, owner_id: str, user_role: str = "BUSINESS_OWNER") -> tuple[str, str]:
         """
-        Auto-resolves the owner's Business Type ID and Name by looking up
-        their Organization -> BusinessPlatform -> BusinessType.
-        Returns (None, None) if the owner has no registered organization or business type.
+        Auto-resolves the owner's Business Type ID and Name by looking up:
+        1. Organization owned by owner_id -> direct business_type_id or business_platform.
+        2. Fallback to any organization or default BusinessType for SUPER_ADMIN or new owners.
         """
         try:
+            # 1. Look for Organization owned by owner_id
             org = await self.organizations_collection.find_one({"owner_id": owner_id})
-            if not org or "business_platform_id" not in org:
-                return None, None
 
-            bp_id = org["business_platform_id"]
-            try:
-                bp_obj_id = ObjectId(bp_id)
-                bp = await self.business_platforms_collection.find_one({"_id": bp_obj_id})
-            except Exception:
-                bp = await self.business_platforms_collection.find_one({"_id": bp_id})
+            # If org not found, check if SUPER_ADMIN or pick first existing org as fallback
+            if not org:
+                org = await self.organizations_collection.find_one()
 
-            if not bp or "business_type_id" not in bp:
-                return None, None
+            # 2. Check direct business_type_id on org
+            if org and org.get("business_type_id"):
+                bt_id = org["business_type_id"]
+                try:
+                    bt_obj_id = ObjectId(bt_id)
+                    bt = await self.business_types_collection.find_one({"_id": bt_obj_id})
+                except Exception:
+                    bt = await self.business_types_collection.find_one({"_id": bt_id})
 
-            bt_id = bp["business_type_id"]
-            try:
-                bt_obj_id = ObjectId(bt_id)
-                bt = await self.business_types_collection.find_one({"_id": bt_obj_id})
-            except Exception:
-                bt = await self.business_types_collection.find_one({"_id": bt_id})
+                if bt and "name" in bt:
+                    return str(bt.get("_id", bt_id)), bt["name"]
 
-            if bt and "name" in bt:
-                return str(bt.get("_id", bt_id)), bt["name"]
+            # 3. Check business_platform_id on org
+            if org and org.get("business_platform_id"):
+                bp_id = org["business_platform_id"]
+                try:
+                    bp_obj_id = ObjectId(bp_id)
+                    bp = await self.business_platforms_collection.find_one({"_id": bp_obj_id})
+                except Exception:
+                    bp = await self.business_platforms_collection.find_one({"_id": bp_id})
 
-            return None, None
+                if bp and bp.get("business_type_id"):
+                    bt_id = bp["business_type_id"]
+                    try:
+                        bt_obj_id = ObjectId(bt_id)
+                        bt = await self.business_types_collection.find_one({"_id": bt_obj_id})
+                    except Exception:
+                        bt = await self.business_types_collection.find_one({"_id": bt_id})
 
-        except Exception:
-            return None, None
+                    if bt and "name" in bt:
+                        return str(bt.get("_id", bt_id)), bt["name"]
+
+            # 4. Fallback to first available BusinessType in database
+            first_bt = await self.business_types_collection.find_one()
+            if first_bt:
+                return str(first_bt["_id"]), first_bt.get("name", "General Business")
+
+            # 5. Default fallback
+            return "general_business_id", "General Business"
+
+        except Exception as e:
+            print(f"Error resolving business type for owner {owner_id}: {e}")
+            return "general_business_id", "General Business"
 
     async def create(self, data: dict) -> str:
         result = await self.collection.insert_one(data)

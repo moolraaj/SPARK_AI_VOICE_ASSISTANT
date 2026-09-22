@@ -20,7 +20,6 @@ def clean_ocr_text(text: str) -> str:
         return ""
     cleaned_lines = []
     for line in text.splitlines():
-        # Remove leading icon symbols, bullet boxes, orphan brackets like [=], [v], [ ], ⊡, ■, □, ⊞, ▪, ▫, ▣, |
         cleaned_line = re.sub(r'^\s*[\u25A0-\u25FF\u2200-\u22FF\u2300-\u23FF\u2600-\u26FF\u2B00-\u2BFF\[\]\=\|\•\·\*\-\+\,\:]+\s*', '', line)
         # Remove orphan icon brackets at line start like [=], [v], [], [+]
         cleaned_line = re.sub(r'^\s*\[\s*[\=\+\*\_A-Za-z0-9]?\s*\]\s*', '', cleaned_line)

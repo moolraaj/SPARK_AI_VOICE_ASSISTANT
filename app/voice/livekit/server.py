@@ -1,3 +1,14 @@
+"""
+LiveKit Agent Server — Multi-Tenant Dynamic Routing.
+
+Inbound Call Flow:
+  Vobiz → LiveKit Room (room.metadata has 'to_number')
+  → DB Lookup: organizations.did_number == to_number
+  → Org → Owner (owner_id) → Active AI Employee
+  → business_type → SparkAgentGraph (dynamic tools)
+  → SparkVoiceAgent starts voice session
+"""
+
 import logging
 import uuid
 import json
@@ -12,62 +23,22 @@ from livekit.agents import (
 )
 
 from app.database.mongodb import mongodb
-from app.modules.auth.repository import AuthRepository
 from app.modules.organizations.organization_repository import OrganizationRepository
 from app.modules.ai_employees.ai_employee_repository import AIEmployeeRepository
+from app.modules.businesses.business_type.business_type_repository import BusinessTypeRepository
 
-from app.voice.livekit.agent import RestaurantVoiceAgent
+from app.voice.livekit.agent import SparkVoiceAgent
 from app.voice.services.voice_session import VoiceSession
 
 
 load_dotenv()
 
 
-logger = logging.getLogger("restaurant-livekit-server")
+logger = logging.getLogger("global-livekit-server")
 logger.setLevel(logging.INFO)
 
 
 server = AgentServer()
-
-
-# ──────────────────────────────────────────────────────────────────
-# OWNER PHONE → owner_id → org → ai_employee
-# ──────────────────────────────────────────────────────────────────
-
-# Outbound test: owner ka registered phone (users table)
-# Production/inbound me ye ctx.room.metadata["to_number"] se aayega
-OWNER_PHONE = "6230097248"
-
-
-async def resolve_employee(owner_phone: str):
-    """
-    phone → users → org → active ai_employee
-    Returns: (owner_id, employee_dict) or (None, None)
-    """
-    auth_repo     = AuthRepository()
-    org_repo      = OrganizationRepository()
-    employee_repo = AIEmployeeRepository()
-
-    owner = await auth_repo.get_user_by_phone(owner_phone)
-    if not owner:
-        logger.error("Owner not found for phone: %s", owner_phone)
-        return None, None
-
-    owner_id = str(owner["_id"])
-
-    orgs = await org_repo.get_by_owner(owner_id, skip=0, limit=1)
-    if not orgs:
-        logger.error("No org found for owner: %s", owner_id)
-        return owner_id, None
-
-    org_id   = str(orgs[0]["_id"])
-    employee = await employee_repo.get_active_by_org(org_id)
-
-    if not employee:
-        logger.error("No active employee for org: %s", org_id)
-        return owner_id, None
-
-    return owner_id, employee
 
 
 def _sanitize(doc: dict) -> dict:
@@ -92,12 +63,77 @@ def _sanitize(doc: dict) -> dict:
     return clean
 
 
+async def resolve_from_did(to_number: str):
+    """
+    Multi-tenant inbound routing:
+      to_number (DID) → organizations.did_number match
+      → org_id, owner_id, org_name → active AI Employee
+      → employee.business_type_id → BusinessType.name (dynamic)
+
+    Returns: (owner_id, org_id, org_name, employee_dict) or (None, None, None, None)
+    employee_dict has 'business_type' field injected dynamically from DB.
+    """
+    org_repo           = OrganizationRepository()
+    employee_repo      = AIEmployeeRepository()
+    business_type_repo = BusinessTypeRepository()
+
+    # Step 1: Find org by the DID number customer called
+    org = await org_repo.get_by_did_number(to_number)
+    if not org:
+        # Fallback: try without country code prefix
+        stripped = to_number.lstrip("+").lstrip("91")
+        org = await org_repo.get_by_did_number(stripped)
+
+    if not org:
+        logger.error("No org found for DID/to_number: %s", to_number)
+        return None, None, None, None
+
+    org_id    = str(org["_id"])
+    owner_id  = str(org.get("owner_id", ""))
+    org_name  = org.get("name", "")
+
+    logger.info("Org resolved | org_id=%s | org_name=%s | owner=%s", org_id, org_name, owner_id)
+
+    # Step 2: Get active AI Employee for this org
+    employee = await employee_repo.get_active_by_org(org_id)
+    if not employee:
+        logger.error("No active AI employee for org: %s", org_id)
+        return owner_id, org_id, org_name, None
+
+    # Step 3: Dynamically resolve business_type string from BusinessType collection
+    # employee.business_type_id (ObjectId ref) → business_types.name (e.g. "RESTAURANT")
+    business_type_str = "GENERAL"   # safe fallback
+    raw_bt_id = employee.get("business_type_id")
+    if raw_bt_id:
+        try:
+            from bson import ObjectId as _ObjId
+            bt_doc = await business_type_repo.get_by_id(_ObjId(str(raw_bt_id)))
+            if bt_doc and bt_doc.get("name"):
+                business_type_str = bt_doc["name"].upper().strip()
+                logger.info(
+                    "business_type resolved | id=%s → name=%s",
+                    raw_bt_id, business_type_str,
+                )
+            else:
+                logger.warning(
+                    "BusinessType doc not found for id=%s — falling back to GENERAL",
+                    raw_bt_id,
+                )
+        except Exception as exc:
+            logger.error("business_type lookup failed: %s — falling back to GENERAL", exc)
+
+    # Inject resolved business_type string into employee dict
+    employee["business_type"] = business_type_str
+
+    return owner_id, org_id, org_name, employee
+
+
 # ──────────────────────────────────────────────────────────────────
 # ENTRYPOINT — called on every dispatched job
 # ──────────────────────────────────────────────────────────────────
 
 @server.rtc_session(
-    agent_name="restaurant-agent",
+    agent_name="spark-agent",
 )
 async def entrypoint(ctx: JobContext):
 
@@ -106,11 +142,33 @@ async def entrypoint(ctx: JobContext):
     await ctx.connect()
     await mongodb.connect()
 
-    # ── Resolve owner + employee ────────────────────────────────
-    owner_id, employee = await resolve_employee(OWNER_PHONE)
+    # ── Extract to_number from room metadata (set by Vobiz inbound) ────────
+    raw_metadata = ctx.room.metadata or "{}"
+    try:
+        metadata = json.loads(raw_metadata)
+    except Exception:
+        metadata = {}
+
+    to_number = (
+        metadata.get("to_number")
+        or metadata.get("called_number")
+        or metadata.get("did")
+        or ""
+    ).strip()
+
+    if not to_number:
+        logger.warning(
+            "No to_number in room metadata — room=%s | metadata=%s",
+            ctx.room.name, raw_metadata,
+        )
+
+    # ── Resolve org + employee from DID number ──────────────────────────────
+    owner_id, org_id, org_name, employee = await resolve_from_did(to_number)
 
     if not employee:
-        logger.error("Cannot start session — employee not resolved.")
+        logger.error(
+            "Cannot start session — employee not resolved | to_number=%s", to_number
+        )
         return
 
     ai_employee_id = str(employee["_id"])
@@ -118,20 +176,24 @@ async def entrypoint(ctx: JobContext):
     session_id     = f"SESSION_{uuid.uuid4().hex[:8]}"
 
     logger.info(
-        "Resolved | owner=%s | employee=%s | session=%s",
-        owner_id, ai_employee_id, session_id,
+        "Session ready | owner=%s | org=%s | org_name=%s | employee=%s | "
+        "business_type=%s | session=%s",
+        owner_id, org_id, org_name,
+        ai_employee_id,
+        employee_data.get("business_type", "RESTAURANT"),
+        session_id,
     )
 
-
-    # ── Build agent with full context ──────────────────────────
-    agent = RestaurantVoiceAgent(
+    # ── Build dynamic agent — business_type auto-detected inside SparkVoiceAgent ──
+    agent = SparkVoiceAgent(
         owner_id       = owner_id,
         ai_employee_id = ai_employee_id,
-        employee_data  = employee_data,   # sanitized — ObjectId already converted
+        employee_data  = employee_data,
         session_id     = session_id,
+        org_name       = org_name,
     )
 
-    # ── Start voice session (STT + TTS + VAD + Agent) ──────────
+    # ── Start voice session (STT + TTS + VAD + Agent) ──────────────────────
     voice_session = VoiceSession(agent=agent)
     await voice_session.start(room=ctx.room)
 

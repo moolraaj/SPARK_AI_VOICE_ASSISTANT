@@ -15,6 +15,7 @@ class Organization(BaseModel):
     id: Optional[str] = None
     owner_id: str                    # ref → User (auto from token)
     business_platform_id: str        # ref → BusinessPlatform
+    business_type_id: str            # ref → BusinessType
     tenant_id: str                   # auto-generated unique workspace ID
     name: str
     slug: str                        # auto-generated from name
@@ -24,6 +25,7 @@ class Organization(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     address: Optional[AddressSchema] = None
+    did_number: Optional[str] = None          # Vobiz DID number assigned to this org
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
@@ -31,22 +33,27 @@ class Organization(BaseModel):
 
 class CreateOrganizationRequest(BaseModel):
     business_platform_id: str
+    business_type_id: str
     name: str = Field(..., min_length=2, max_length=150)
     description: Optional[str] = None
     website: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     address: Optional[AddressSchema] = None
+    did_number: Optional[str] = None          # Vobiz DID number
 
 
 class UpdateOrganizationRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=150)
+    business_platform_id: Optional[str] = None
+    business_type_id: Optional[str] = None
     description: Optional[str] = None
     logo_url: Optional[str] = None
     website: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     address: Optional[AddressSchema] = None
+    did_number: Optional[str] = None          # Vobiz DID number
     is_active: Optional[bool] = None
 
 
@@ -54,6 +61,7 @@ class OrganizationResponse(BaseModel):
     id: str
     owner_id: str
     business_platform_id: str
+    business_type_id: Optional[str] = None
     tenant_id: str
     name: str
     slug: str
@@ -63,6 +71,7 @@ class OrganizationResponse(BaseModel):
     phone: Optional[str]
     email: Optional[str]
     address: Optional[AddressSchema]
+    did_number: Optional[str] = None          # Vobiz DID number
     is_active: bool
     created_at: datetime
     updated_at: datetime

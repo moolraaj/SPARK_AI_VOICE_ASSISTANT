@@ -9,14 +9,12 @@ from langchain_core.messages import (
     SystemMessage,
 )
 
-from app.ai.graph.graph import RestaurantAgentGraph
-from app.ai.prompts.restaurant_prompt import build_system_prompt
+from app.ai.graph.graph import SparkAgentGraph, RestaurantAgentGraph  # RestaurantAgentGraph kept for compat
+from app.ai.context.session_context_resolver import SessionContextResolver
+from app.ai.prompts.prompt_builder import RuntimePromptBuilder
+from app.ai.prompts.restaurant_prompt import build_system_prompt  # legacy — still importable
 from app.database.mongodb import mongodb
-from app.modules.ai_employees.ai_employee_repository import AIEmployeeRepository
-from app.modules.organizations.organization_repository import OrganizationRepository
-from app.modules.auth.repository import AuthRepository
 from app.modules.conversations.conversation_repository import ConversationRepository
-from app.modules.customers.customer_repository import CustomerRepository
 from app.core.datetime import timestamps
 
 
@@ -25,18 +23,19 @@ from app.core.datetime import timestamps
 # ============================================================
 session_id = str(uuid.uuid4())   # ek hi conversation ke liye fixed rahega
 
-# Phone-based resolution (Vobiz-style)
-OWNER_PHONE    = "6230097248"    # Owner ka registered number (users table)
-CUSTOMER_PHONE = "7018616800"    # Customer ka caller number
+# Owner ka phone number = org ka DID number (same thing)
+# Jab customer yeh number call karta hai → org identify hoti hai
+OWNER_PHONE    = "6230397248"    # Owner's phone = DID number
+CUSTOMER_PHONE = "7018616800"    # Actual caller (customer)
 
-# Unique session per call — format: SESSION_{owner}_{customer}_{short_uuid}
-# Har naye test run pe fresh session banega
-SESSION_UUID = uuid.uuid4().hex[:8]   # e.g. "a3f2c1d0"
-SESSION_ID   = f"SESSION_{OWNER_PHONE}_{CUSTOMER_PHONE}_{SESSION_UUID}"
+DID_NUMBER = OWNER_PHONE         # same number — no separate field needed
+
+# Unique session per call
+SESSION_UUID = uuid.uuid4().hex[:8]
+SESSION_ID   = f"SESSION_{DID_NUMBER}_{CUSTOMER_PHONE}_{SESSION_UUID}"
 
 # Legacy constant (kept for backward compatibility)
-OWNER_ID = "6a69cc543c715f070a74bff3"
-
+OWNER_ID      = "6a69cc543c715f070a74bff3"
 BUSINESS_TYPE = "RESTAURANT"
 
 
@@ -138,67 +137,74 @@ def print_message(message):
 
 
 # ============================================================
-# LOAD AI EMPLOYEE
+# RESOLVE SESSION CONTEXT (DID → Org → AI Employee → Platform Config)
 # ============================================================
 
-async def load_ai_employee():
+async def resolve_session_context():
+    """
+    Resolve the full session context using SessionContextResolver.
+    OWNER_PHONE = DID number (same thing) → resolves org → ai_employee → platform_config.
+    """
+    resolver = SessionContextResolver()
 
-    auth_repository         = AuthRepository()
-    organization_repository = OrganizationRepository()
-    ai_employee_repository  = AIEmployeeRepository()
+    print(f"\n🔍 Resolving session: DID={DID_NUMBER} | Caller={CUSTOMER_PHONE}")
 
-    # ========================================================
-    # OWNER PHONE → USER → OWNER_ID
-    # ========================================================
-
-    owner_user = await auth_repository.get_user_by_phone(OWNER_PHONE)
-
-    if not owner_user:
-        raise RuntimeError(
-            f"No user found with phone number: {OWNER_PHONE}"
-        )
-
-    resolved_owner_id = str(owner_user["_id"])
-
-    print(f"\n✅ Owner Resolved  : {owner_user.get('name')} (ID: {resolved_owner_id})")
-
-    # ========================================================
-    # OWNER → ORGANIZATION
-    # ========================================================
-
-    organizations = await organization_repository.get_by_owner(
-        resolved_owner_id,
-        skip=0,
-        limit=1,
+    ctx = await resolver.resolve(
+        did_number   = DID_NUMBER,      # OWNER_PHONE is the DID number
+        caller_phone = CUSTOMER_PHONE or None,
     )
 
-    if not organizations:
+    return ctx
 
-        raise RuntimeError(
-            "No organization found for this owner."
+
+# ============================================================
+# RESOLVE ORGANIZATION NAME (required by RuntimePromptBuilder)
+# ============================================================
+
+async def resolve_organization_name(ctx) -> str:
+    """
+    Get the real organization/business name for the greeting layer.
+
+    Priority:
+    1. If SessionContextResolver already attached a name on ctx (org_name /
+       organization_name), reuse it — no extra DB hit.
+    2. Otherwise, look it up directly from the `organizations` collection
+       using ctx.org_id.
+
+    Raises:
+        ValueError: if no name can be resolved — this must fail loudly,
+        RuntimePromptBuilder.build() will not accept a missing name either.
+    """
+
+    # 1. Already resolved on ctx? (adjust attribute name if your resolver
+    #    uses a different field — check SessionContextResolver's return type)
+    name = getattr(ctx, "org_name", None) or getattr(ctx, "organization_name", None)
+    if name and str(name).strip():
+        return str(name).strip()
+
+    # 2. Fallback: fetch directly from MongoDB using org_id
+    if not ctx.org_id:
+        raise ValueError("Cannot resolve organization name — ctx.org_id is missing.")
+
+    org_doc = await mongodb.database["organizations"].find_one({"_id": ctx.org_id})
+
+    # org_id might be stored as a string in ctx but ObjectId in Mongo — retry if needed
+    if not org_doc:
+        try:
+            from bson import ObjectId
+            org_doc = await mongodb.database["organizations"].find_one(
+                {"_id": ObjectId(ctx.org_id)}
+            )
+        except Exception:
+            org_doc = None
+
+    if not org_doc or not org_doc.get("name"):
+        raise ValueError(
+            f"Organization name not found in DB for org_id={ctx.org_id}. "
+            "Check the 'organizations' collection and field name ('name')."
         )
 
-    organization = organizations[0]
-
-    org_id = str(
-        organization["_id"]
-    )
-
-    # ========================================================
-    # ORGANIZATION → ACTIVE AI EMPLOYEE
-    # ========================================================
-
-    ai_employee = await ai_employee_repository.get_active_by_org(
-        org_id
-    )
-
-    if not ai_employee:
-
-        raise RuntimeError(
-            "No active AI employee found for this organization."
-        )
-
-    return organization, ai_employee, resolved_owner_id
+    return org_doc["name"].strip()
 
 
 # ============================================================
@@ -208,77 +214,54 @@ async def load_ai_employee():
 async def main():
 
     # ========================================================
-    # MONGODB
+    # CONNECT MONGODB
     # ========================================================
 
     await mongodb.connect()
 
     # ========================================================
-    # LOAD AI EMPLOYEE (via owner phone number)
+    # RESOLVE SESSION CONTEXT (DID / Phone → Org → AI Employee)
     # ========================================================
 
     try:
-
-        organization, ai_employee, resolved_owner_id = await load_ai_employee()
-
+        ctx = await resolve_session_context()
     except Exception as exc:
-
-        print("\n❌ AI EMPLOYEE RESOLUTION ERROR")
+        print("\n❌ SESSION CONTEXT RESOLUTION ERROR")
         print("-" * 60)
+        print(type(exc).__name__)
+        print(str(exc))
+        return
 
-        print(
-            type(exc).__name__
-        )
+    # Unpack resolved context
+    owner_id        = ctx.owner_id
+    org_id          = ctx.org_id
+    ai_employee_id  = ctx.ai_employee_id
+    ai_employee     = ctx.ai_employee
+    platform_config = ctx.platform_config
+    business_type   = ctx.business_type
+    customer_id     = ctx.customer_id
 
-        print(
-            str(exc)
-        )
+    # ========================================================
+    # RESOLVE ORGANIZATION NAME (required, no silent fallback)
+    # ========================================================
 
+    try:
+        organization_name = await resolve_organization_name(ctx)
+    except Exception as exc:
+        print("\n❌ ORGANIZATION NAME RESOLUTION ERROR")
+        print("-" * 60)
+        print(type(exc).__name__)
+        print(str(exc))
         return
 
     # ========================================================
-    # IDS
+    # BUILD DYNAMIC SYSTEM PROMPT (4 layers)
     # ========================================================
 
-    org_id = str(
-        organization["_id"]
-    )
-
-    ai_employee_id = str(
-        ai_employee["_id"]
-    )
-
-    owner_id = resolved_owner_id
-
-    # ========================================================
-    # RESOLVE / CREATE CUSTOMER RECORD
-    # (so customer_id is never null in DB)
-    # ========================================================
-
-    customer_repo  = CustomerRepository()
-    customer_c_uuid = f"CUSTOMER_{CUSTOMER_PHONE}_{uuid.uuid4().hex[:8]}"
-    existing_customer = await customer_repo.get_by_phone(owner_id, CUSTOMER_PHONE)
-    if existing_customer:
-        customer_id = str(existing_customer["_id"])
-        print(f"✅ Customer Found   : {CUSTOMER_PHONE} (ID: {customer_id})")
-    else:
-        customer_id = await customer_repo.create_customer({
-            "owner_id": owner_id,
-            "phone_number": CUSTOMER_PHONE,
-            "customer_uuid": customer_c_uuid,   # e.g. CUSTOMER_7018616800_a3f2c1d0
-            "name": None,
-            "role": "CUSTOMER",
-            "total_conversations": 1,
-            **timestamps(),
-        })
-        print(f"🆕 Customer Created  : {CUSTOMER_PHONE} (customer_uuid: {customer_c_uuid})")
-
-    # ========================================================
-    # BUILD DYNAMIC SYSTEM PROMPT
-    # ========================================================
-
-    system_prompt = build_system_prompt(
-        ai_employee
+    system_prompt = RuntimePromptBuilder.build(
+        ai_employee        = ai_employee,
+        organization_name  = organization_name,
+        platform_config    = platform_config,
     )
 
     # ========================================================
@@ -315,17 +298,17 @@ async def main():
     )
 
     print(f"Org ID      : {org_id}")
+    print(f"Org Name    : {organization_name}")
     print(f"Owner Phone : {OWNER_PHONE}")
     print(f"Customer    : {CUSTOMER_PHONE}")
     print(f"Session ID  : {SESSION_ID}")
     print("=" * 60)
 
     # ========================================================
-    # BUILD AGENT
+    # BUILD AGENT (dynamic: business_type from resolved ctx)
     # ========================================================
 
-    agent = RestaurantAgentGraph()
-
+    agent = SparkAgentGraph(business_type=business_type)
     graph = agent.build()
 
     # ========================================================
@@ -484,12 +467,15 @@ async def main():
 
             async for event in graph.astream_events(
                 {
-                    "messages": messages,
-                    "owner_id": owner_id,
-                    "business_type": BUSINESS_TYPE,
+                    "messages":       messages,
+                    "owner_id":       owner_id,
+                    "org_id":         org_id,
+                    "business_type":  business_type,
+                    "business_type_id": ctx.business_type_id,
                     "ai_employee_id": ai_employee_id,
+                    "ai_employee":    ai_employee,
+                    "platform_config": platform_config,
                 },
-                # thread_id = checkpointer ke liye unique conversation identifier
                 config={"configurable": {"thread_id": SESSION_ID}},
                 version="v2",
             ):
@@ -612,11 +598,12 @@ async def main():
                 await conversation_repo.save_message(
                     session_id=SESSION_ID,
                     owner_id=owner_id,
+                    org_id=org_id,
                     employee_id=ai_employee_id,
                     user_message=user_input,
                     assistant_reply=ai_reply,
                     cart=[],
-                    customer_id=customer_id,   # ← ab null nahi hoga
+                    customer_id=customer_id,
                 )
                 print(f"💾 Saved to DB → session: {SESSION_ID}")
             except Exception as save_err:

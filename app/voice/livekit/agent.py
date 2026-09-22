@@ -1,3 +1,10 @@
+"""
+SparkVoiceAgent — Dynamic, multi-tenant voice agent.
+
+- business_type ke basis par SparkAgentGraph dynamically build hota hai.
+- RestaurantVoiceAgent sirf backward-compat alias hai.
+"""
+
 import logging
 import re
 import time
@@ -6,20 +13,22 @@ from livekit.agents import Agent
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from app.ai.graph.graph import RestaurantAgentGraph
-from app.ai.prompts.restaurant_prompt import build_system_prompt
+from app.ai.graph.graph import SparkAgentGraph
 
 
-logger = logging.getLogger("restaurant-voice-agent")
+logger = logging.getLogger("global-voice-agent")
 
 # Sentence-boundary detector — end mark ke turant baad TTS ko chunk bhejne ke liye.
 # Hindi/Urdu "।" bhi cover kiya hai.
 _SENTENCE_END_RE = re.compile(r"[.!?।]\s*$")
 
 
-class RestaurantVoiceAgent(Agent):
+class SparkVoiceAgent(Agent):
     """
-    Voice agent — Deepgram STT → LangGraph (streamed) → Sarvam TTS.
+    Dynamic Voice agent — Deepgram STT → LangGraph (streamed) → Sarvam TTS.
+
+    - business_type se SparkAgentGraph build hota hai (RESTAURANT, HOTEL, etc.)
+    - org_name RuntimePromptBuilder ko pass hota hai taaki correct org name show ho.
 
     IMPORTANT: LLM tokens ko astream_events se stream karke, sentence-boundary
     par turant TTS ko bhej diya jaata hai. Poore graph output ka wait NAHI
@@ -39,26 +48,29 @@ class RestaurantVoiceAgent(Agent):
         ai_employee_id: str,
         employee_data: dict,
         session_id: str,
+        org_name: str = "",
     ) -> None:
 
-        system_prompt = build_system_prompt(employee_data)
+        system_prompt = employee_data.get("greeting_message") or f"Namaste! Main {employee_data.get('name', 'Spark AI')} bol raha hoon."
         super().__init__(instructions=system_prompt)
 
-        # Build LangGraph once per call
-        self._graph      = RestaurantAgentGraph().build()
+        # Dynamically build graph based on business_type from employee_data
+        business_type = (employee_data.get("business_type") or "RESTAURANT").upper().strip()
+
+        self._graph      = SparkAgentGraph(business_type=business_type).build()
         self._owner_id   = owner_id
         self._emp_id     = ai_employee_id
         self._emp_data   = employee_data
         self._session_id = session_id
+        self._org_name   = org_name
+        self._business_type = business_type
 
         # NOTE: Ab yeh sirf LOGGING/debugging ke liye hai.
-        # Graph ko yeh poori list kabhi bhi pass NAHI ki jaati —
-        # graph apni state checkpointer (thread_id) se khud maintain karta hai.
         self._local_history = [SystemMessage(content=system_prompt)]
 
         logger.info(
-            "RestaurantVoiceAgent ready | session=%s | employee=%s",
-            session_id, ai_employee_id,
+            "SparkVoiceAgent ready | session=%s | employee=%s | business_type=%s | org=%s",
+            session_id, ai_employee_id, business_type, org_name,
         )
 
     # ── Greet customer when call connects ────────────────────────────────────
@@ -92,14 +104,12 @@ class RestaurantVoiceAgent(Agent):
         try:
             async for event in self._graph.astream_events(
                 {
-                    # FIXED: sirf naya message bhejo, poori history nahi.
-                    # Checkpointer (thread_id) pehle se hi system prompt +
-                    # history maintain kar raha hai.
                     "messages":       [start_message],
                     "owner_id":       self._owner_id,
-                    "business_type":  self._emp_data.get("business_type", "RESTAURANT"),
+                    "business_type":  self._business_type,
                     "ai_employee_id": self._emp_id,
                     "ai_employee":    self._emp_data,
+                    "org_name":       self._org_name,
                 },
                 config={"configurable": {"thread_id": self._session_id}},
                 version="v2",
@@ -172,17 +182,12 @@ class RestaurantVoiceAgent(Agent):
         try:
             async for event in self._graph.astream_events(
                 {
-                    # FIXED: sirf naya user message bhejo — checkpointer
-                    # already purani history ko thread_id ke against
-                    # maintain kar raha hai. Poori self._local_history
-                    # bhejne se add_messages reducer duplicate/merge
-                    # karta jaata hai aur context har turn ke saath
-                    # balloon hota hai → latency badhti jaati hai.
                     "messages":       [new_user_message],
                     "owner_id":       self._owner_id,
-                    "business_type":  self._emp_data.get("business_type", "RESTAURANT"),
+                    "business_type":  self._business_type,
                     "ai_employee_id": self._emp_id,
                     "ai_employee":    self._emp_data,
+                    "org_name":       self._org_name,
                 },
                 config={"configurable": {"thread_id": self._session_id}},
                 version="v2",
@@ -246,3 +251,7 @@ class RestaurantVoiceAgent(Agent):
                 "Maafi, abhi kuch technical problem hai. Thodi der baad try karein.",
                 add_to_chat_ctx=False,
             )
+
+
+# ── Backward-compatibility alias ─────────────────────────────────────────────
+RestaurantVoiceAgent = SparkVoiceAgent

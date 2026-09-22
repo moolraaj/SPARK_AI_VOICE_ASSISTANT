@@ -9,20 +9,16 @@ uploads_router = APIRouter(prefix="/uploads", tags=["Upload Documents"])
 
 
 @upload_router.post("/document")
+@upload_router.post("/pdf")
 async def upload_document(
     file: UploadFile = File(...),
+    organization_id: str | None = Query(default=None),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Upload PDF, Excel (.xlsx, .xls), or CSV (.csv) document.
-
-    Automated Behavior:
-    - owner_id auto-extracted from JWT.
-    - Business Type auto-resolved from Organization.
-    - AI extracts items → saved to Redis (2hr TTL).
-    - Returns MongoDB _id as 'id'. Use it for all subsequent calls.
     """
-    return await service.upload_and_process(file=file, current_user=current_user)
+    return await service.upload_and_process(file=file, current_user=current_user, organization_id=organization_id)
 
 
 @upload_router.get("/preview/{doc_id}")
@@ -32,8 +28,6 @@ async def get_preview(
 ):
     """
     Fetch the extracted preview data from Redis.
-    Call this after upload to populate the editable table on the frontend.
-    Returns 404 if the preview has expired (2hr TTL).
     """
     return await service.get_preview(doc_id=doc_id, current_user=current_user)
 
@@ -46,27 +40,37 @@ async def update_preview(
 ):
     """
     Save user's edits back to Redis.
-    Payload: { "items": [...], "categories": [...] }
-    Resets the 2hr TTL on each save.
     """
     return await service.update_preview(doc_id=doc_id, payload=payload, current_user=current_user)
 
 
 @upload_router.post("/confirm/{doc_id}")
+@upload_router.post("/confirm")
 async def confirm_and_save(
-    doc_id: str,
+    doc_id: str | None = None,
+    organization_id: str | None = Query(default=None),
+    payload: dict | None = None,
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Confirm and permanently save extracted menu data.
-    - Reads items from Redis.
-    - Saves categories to menu_categories collection.
-    - Saves items to menu_items collection.
-    - Embeds items into Qdrant vector store.
-    - Clears Redis preview key.
-    - Updates uploaded_documents status = PROCESSED.
+    Confirm and permanently save extracted menu data to MongoDB & Qdrant vector store.
     """
-    return await service.confirm_and_save(doc_id=doc_id, current_user=current_user)
+    target_doc_id = doc_id
+    target_org_id = organization_id
+    if payload and isinstance(payload, dict):
+        if not target_doc_id:
+            target_doc_id = payload.get("document_id")
+        if not target_org_id:
+            target_org_id = payload.get("organization_id")
+
+    if not target_doc_id:
+        return {"success": False, "message": "document_id is required to confirm catalog save."}
+
+    # If items are passed directly in body, save via create_structured_data if Redis draft is unavailable
+    result = await service.confirm_and_save(doc_id=target_doc_id, current_user=current_user, organization_id=target_org_id)
+    if not result.get("success") and payload and "items" in payload:
+        return await service.create_structured_data(doc_id=target_doc_id, payload=payload, current_user=current_user)
+    return result
 
 
 @uploads_router.get("/my-documents")

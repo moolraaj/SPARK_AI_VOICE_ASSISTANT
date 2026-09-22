@@ -52,14 +52,15 @@ async def get_my_conversations(
 @chat_router.get("/conversations/by-phone/{phone_number}")
 async def get_conversations_by_phone(
     phone_number: str,
+    org_id: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    PROTECTED: Get full conversation & call history by customer phone number.
+    PROTECTED: Get full conversation & call history by customer phone number, optionally filtered by org_id.
     """
-    return await chat_service.get_conversations_by_phone(phone_number=phone_number, page=page, limit=limit)
+    return await chat_service.get_conversations_by_phone(phone_number=phone_number, org_id=org_id, page=page, limit=limit)
 
 
 @conversations_router.post("/bulk-remove")

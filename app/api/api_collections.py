@@ -35,6 +35,17 @@ from app.modules.conversations.chat_route import (
 )
 from app.modules.customers.customer_route import customers_router, customer_router
 from app.modules.ocr.ocr_route import ocr_router
+from app.modules.live_feeds.live_feed_route import (
+    live_feeds_router,
+    live_feed_router,
+)
+from app.modules.platform_configs.platform_config_route import (
+    platform_configs_router,
+    platform_config_router,
+)
+     
+
+from app.rag.vectorstore.qdrant_route import vector_store_router
 
 
 api_router = APIRouter(prefix="/api/v1")
@@ -52,6 +63,8 @@ api_router.include_router(business_platform_router)
 
 api_router.include_router(organizations_router)
 api_router.include_router(organization_router)
+
+api_router.include_router(vector_store_router)
 
 api_router.include_router(ai_employees_router)
 api_router.include_router(ai_employee_router)
@@ -72,3 +85,9 @@ api_router.include_router(customers_router)
 api_router.include_router(customer_router)
 
 api_router.include_router(ocr_router)
+
+api_router.include_router(live_feeds_router)
+api_router.include_router(live_feed_router)
+
+api_router.include_router(platform_configs_router)
+api_router.include_router(platform_config_router)

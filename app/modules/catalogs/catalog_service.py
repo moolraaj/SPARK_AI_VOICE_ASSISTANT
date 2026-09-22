@@ -21,7 +21,8 @@ class CatalogService:
         self,
         owner_id: str,
         document_id: str,
-        preview_data: dict
+        preview_data: dict,
+        organization_id: str | None = None,
     ) -> dict:
         """
         Takes preview data from Redis (categories + items),
@@ -32,6 +33,8 @@ class CatalogService:
         raw_items: list[dict] = preview_data.get("items", [])
         if not raw_items:
             return {"success": False, "message": "No items found in preview data."}
+
+        target_org_id = organization_id or preview_data.get("organization_id") or owner_id
 
         # Step 1: Collect unique categories in order
         seen_cats: dict[str, int] = {}
@@ -69,6 +72,7 @@ class CatalogService:
 
             mongo_items.append({
                 "owner_id": owner_id,
+                "organization_id": target_org_id,
                 "document_id": document_id,
                 "category_id": cat_id,
                 "item_name": name,
@@ -95,12 +99,14 @@ class CatalogService:
                 "category_id": item_doc["category_id"],
                 "price": item_doc["price"],
                 "is_veg": item_doc["is_veg"],
+                "organization_id": target_org_id,
             })
 
         vectors_saved = await qdrant_store.upsert_items(
             owner_id=owner_id,
             document_id=document_id,
-            items=qdrant_items
+            items=qdrant_items,
+            organization_id=target_org_id,
         )
 
         return {

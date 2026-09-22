@@ -30,6 +30,10 @@ class OrganizationRepository:
     async def get_by_slug(self, slug: str):
         return await self.organizations.find_one({"slug": slug})
 
+    async def get_by_did_number(self, did_number: str):
+        """Resolve an org by its Vobiz DID number (the number a customer calls)."""
+        return await self.organizations.find_one({"did_number": did_number})
+
     async def get_by_slug_excluding(self, slug: str, exclude_id: ObjectId):
         return await self.organizations.find_one({
             "slug": slug,

@@ -10,7 +10,9 @@ from .services.domain_classifier import check_domain_relevance_with_ai
 from .services.schema_parser import (
     analyze_document_schema_with_ai,
     python_execute_categorized_parsing,
-    convert_txt_to_categorized_json_with_ai
+    convert_txt_to_categorized_json_with_ai,
+    extract_categorized_items_with_ai,
+    clean_price_value
 )
 
 ALLOWED_EXTENSIONS = {".pdf", ".xlsx", ".xls", ".csv"}
@@ -21,7 +23,12 @@ class UploadService:
     def __init__(self):
         self.repository = UploadRepository()
 
-    async def upload_and_process(self, file: UploadFile, current_user: dict) -> dict:
+    async def upload_and_process(
+        self,
+        file: UploadFile,
+        current_user: dict,
+        organization_id: str | None = None,
+    ) -> dict:
         filename = file.filename or "file"
         _, ext = os.path.splitext(filename.lower())
 
@@ -32,17 +39,15 @@ class UploadService:
                 "message": f"Invalid file type '{ext}'. Only PDF (.pdf), Excel (.xlsx, .xls), and CSV (.csv) files are allowed."
             }
 
-        # 2. Extract owner_id from JWT Auth Token
+        # 2. Extract owner_id and role from JWT Auth Token
         owner_id = str(current_user["_id"])
+        user_role = str(current_user.get("role", "BUSINESS_OWNER"))
+        target_org_id = organization_id or owner_id
 
-        # 3. Auto-resolve Business Type from Owner's Organization
-        bt_id, bt_name = await self.repository.get_business_type_for_owner(owner_id)
-
-        if not bt_id or not bt_name:
-            return {
-                "success": False,
-                "message": "No registered organization found for your account. Please set up your business organization before uploading documents."
-            }
+        # 3. Auto-resolve Business Type from Owner's Organization (or fallback for SUPER_ADMIN/owners)
+        bt_id, bt_name = await self.repository.get_business_type_for_owner(owner_id, user_role)
+        if not bt_name:
+            bt_id, bt_name = "general_business_id", "General Business"
 
         # Read file bytes in memory
         file_bytes = await file.read()
@@ -85,8 +90,10 @@ class UploadService:
             f.write(file_bytes)
 
         # Extract Raw JSON items for Frontend Editable Table View
-        categories_list, llm_usage = await analyze_document_schema_with_ai(raw_text, bt_name)
-        raw_parsed_data = python_execute_categorized_parsing(raw_text, categories_list, bt_name, filename, llm_usage)
+        raw_parsed_data, llm_usage = await extract_categorized_items_with_ai(raw_text, bt_name, filename)
+        if not raw_parsed_data or not raw_parsed_data.get("categories"):
+            categories_list, llm_usage = await analyze_document_schema_with_ai(raw_text, bt_name)
+            raw_parsed_data = python_execute_categorized_parsing(raw_text, categories_list, bt_name, filename, llm_usage)
 
         flat_raw_items = []
         for cat_name, items_list in raw_parsed_data.get("categories", {}).items():
@@ -94,7 +101,7 @@ class UploadService:
                 flat_raw_items.append({
                     "category": cat_name,
                     "item_name": item_obj.get("item_name"),
-                    "price": item_obj.get("price"),
+                    "price": clean_price_value(item_obj.get("price")),
                     "is_veg": item_obj.get("is_veg", True)
                 })
 
@@ -107,6 +114,7 @@ class UploadService:
         # Insert Document Metadata in MongoDB
         doc_data = {
             "owner_id": owner_id,
+            "organization_id": target_org_id,
             "business_type_id": bt_id,
             "file_name": filename,
             "file_type": ext.lstrip("."),
@@ -125,6 +133,7 @@ class UploadService:
         await redis_client.save_preview(mongo_id, {
             "doc_id": mongo_id,
             "owner_id": owner_id,
+            "organization_id": target_org_id,
             "file_name": filename,
             "detected_type": bt_name.upper(),
             "categories": unique_categories,
@@ -137,6 +146,7 @@ class UploadService:
             "data": {
                 "id": mongo_id,
                 "owner_id": owner_id,
+                "organization_id": target_org_id,
                 "file_name": filename,
                 "file_type": ext.lstrip("."),
                 "file_size_bytes": file_size,
@@ -211,7 +221,12 @@ class UploadService:
             }
         }
 
-    async def confirm_and_save(self, doc_id: str, current_user: dict) -> dict:
+    async def confirm_and_save(
+        self,
+        doc_id: str,
+        current_user: dict,
+        organization_id: str | None = None,
+    ) -> dict:
         """
         Confirm: Redis → MongoDB (menu_categories + menu_items) + Qdrant vector store.
         Clears Redis key after successful save.
@@ -229,13 +244,16 @@ class UploadService:
         if preview_data.get("owner_id") != owner_id and current_user.get("role") != "SUPER_ADMIN":
             return {"success": False, "message": "You are not authorized to confirm this upload."}
 
+        target_org_id = organization_id or preview_data.get("organization_id") or owner_id
+
         # 2. Save to MongoDB + Qdrant via CatalogService
         from app.modules.catalogs.catalog_service import CatalogService
         catalog_service = CatalogService()
         result = await catalog_service.confirm_and_save(
             owner_id=owner_id,
             document_id=doc_id,
-            preview_data=preview_data
+            preview_data=preview_data,
+            organization_id=target_org_id,
         )
 
         if not result.get("success"):
@@ -290,10 +308,7 @@ class UploadService:
                 continue
 
             raw_price = item.get("price", 0)
-            try:
-                price_val = float(raw_price) if "." in str(raw_price) else int(raw_price)
-            except Exception:
-                price_val = str(raw_price)
+            price_val = clean_price_value(raw_price)
 
             is_veg = item.get("is_veg")
             if is_veg is None:

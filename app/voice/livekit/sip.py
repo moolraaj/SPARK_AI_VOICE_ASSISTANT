@@ -9,7 +9,7 @@ async def create_outbound_call(
     phone_number: str,
     room_name: str,
     participant_identity: str,
-    agent_name: str = "restaurant-agent",
+    agent_name: str = "spark-agent",
 ):
     """
     Correct outbound flow (per LiveKit docs):

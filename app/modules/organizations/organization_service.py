@@ -117,6 +117,7 @@ class OrganizationService:
         data = {
             "owner_id": owner_id,
             "business_platform_id": request.business_platform_id,
+            "business_type_id": request.business_type_id,
             "tenant_id": tenant_id,
             "name": request.name,
             "slug": slug,
@@ -152,6 +153,7 @@ class OrganizationService:
                 "name": request.name,
                 "slug": slug,
                 "business_platform_id": request.business_platform_id,
+                "business_type_id": request.business_type_id,
             },
         }
 

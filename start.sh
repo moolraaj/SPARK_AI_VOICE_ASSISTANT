@@ -21,4 +21,8 @@ echo ""
 echo "✅ All services status check:"
 redis-cli ping > /dev/null 2>&1 && echo "   Redis  (6379) → PONG ✅" || echo "   Redis  (6379) → DOWN ❌"
 curl -s http://localhost:6333/collections > /dev/null 2>&1 && echo "   Qdrant (6333) → OK ✅" || echo "   Qdrant (6333) → DOWN ❌"
+--npx redis-commander
 echo ""
+
+
+

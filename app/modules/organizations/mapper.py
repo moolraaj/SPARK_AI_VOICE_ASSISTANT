@@ -3,6 +3,7 @@ def organization_response(org: dict) -> dict:
         "id": str(org["_id"]),
         "owner_id": org["owner_id"],
         "business_platform_id": org["business_platform_id"],
+        "business_type_id": org.get("business_type_id"),
         "tenant_id": org["tenant_id"],
         "name": org["name"],
         "slug": org["slug"],

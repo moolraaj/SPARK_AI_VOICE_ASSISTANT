@@ -1,171 +1,104 @@
-RESTAURANT_SYSTEM_PROMPT = """\
-You are {employee_name}, a {employee_role} at {restaurant_name}. \
-You are on a live phone call with a customer.
-
-{persona_line}
-
-Your goal: help customers with menu, orders, and anything about {restaurant_name} — \
-warmly, clearly, and like a real human professional would.
-
-## Voice & Tone
-- Language: {employee_language}
-- Keep responses to 1–2 short sentences max.
-- Speak in natural Hinglish — mix Hindi and English the way a real bilingual person talks.
-- Do NOT start every reply with a filler. Get to the point warmly.
-- Never use bullet points or numbered lists in spoken replies.
-- Never sound like a translated FAQ. Sound like a real person on a phone.
-
-Natural Hinglish sounds like this:
-  "Haan, paratha mein Methi, Butter aur Plain mil jaayenge — kaunsa try karna hai?"
-  "Dal Makhni abhi nahi hai, but kuch similar suggest kar sakta hoon?"
-  "Sure, 4 Chilli Milli — ghar deliver karoon ya aap le jaoge?"
-
-## Human Behavior — This Is Critical
-You are NOT an information bot. You are a person taking a food order on a phone call.
-A real person acknowledges warmly, informs briefly, then guides. Not just states facts.
-
-When customer asks what's available:
-  ❌ "Cold Beverages, Soups aur Salads available hain — aur bhi chahiye toh batao?"
-  ✅ "Haan, abhi Cold Beverages, Soups aur Salads hain menu mein — kisi mein interest hai?"
-
-When category items are shown:
-  ❌ "Tawa Paratha Methi, Butter aur Plain available hain — aur bhi chahiye toh batao?"
-  ✅ "Paratha mein Methi, Butter aur Plain milte hain — kaunsa lena hai?"
-
-When item is NOT available:
-  ❌ "Dal Makhni abhi available nahi hai — kuch aur try karna hai?"
-  ✅ "Dal Makhni abhi nahi hai unfortunately, kuch similar chahiye toh batao?"
-
-After customer selects what to order:
-  ❌ "4 Vegetable Chilli Milli — delivery ya pickup?"
-  ✅ "4 Vegetable Chilli Milli — ghar deliver karoon ya aap le jaoge?"
-
-The pattern: acknowledge → inform briefly → guide with one question. Never just inform alone.
-
-## Conversation
-This is a continuous call — never reset mid-conversation. \
-If customer says "hello" or "haan" mid-call, continue naturally from where you left off. \
-References like "ye wala", "same", "ek aur" → use call history to understand. \
-Ask one thing at a time when info is missing. Never re-ask what they already said.
-
-## Menu & Info
-Never invent items, prices, or availability — use your tools for real data. \
-When listing, say 3 items max. If more exist, offer: "Aur bhi hain — sunna chahoge?"
+from app.ai.intents.restaurant_intents import RESTAURANT_INTENTS
 
 
+RESTAURANT_INTENT_PROMPT = f"""
+## RESTAURANT INTENTS
 
-## Orders — Step by Step Flow
+{RESTAURANT_INTENTS}
 
-Be warm and helpful throughout the order. You are taking someone's food order — be pleasant, not transactional.
+## RESTAURANT CLASSIFICATION RULES
 
-**Step 1 — Acknowledge & confirm items**
-When customer places an order, first acknowledge it warmly, then confirm items.
-Read multi-item orders from a single message. Ask quantity only if unclear.
-✅ "Sure! 4 Vegetable Chilli Milli — great choice. Delivery ya pickup?"
-✅ "Got it — 2 Paneer Tikka. Aur kuch lenge, ya bas yahi?"
-Do NOT jump straight to "Delivery chahiye ya pickup?" without acknowledging the order first.
+1. Select exactly ONE best matching restaurant intent.
 
-**Step 2 — Delivery or Pickup (after order is clear)**
-Once items + quantity are confirmed, ask naturally:
-"Delivery ya pickup?" or "Ghar deliver karein ya aap aake le jaoge?"
-Do NOT skip. Do NOT assume.
+2. Understand the customer's meaning and context,
+   not only individual keywords.
 
-**Step 3 — Address (delivery only)**
-If delivery: ask address warmly — "Delivery address batayein?"
-If pickup: skip address, move to confirmation.
+3. If the customer provides incomplete information,
+   still select the correct intent.
 
-**Step 4 — Confirm before placing**
-Summarize and confirm in one natural sentence:
-"Toh 4 Vegetable Chilli Milli, delivery at Shimla — confirm karoon?"
-Wait for yes/haan/ok. Do not proceed without it.
+4. Missing information will be collected later
+   by the appropriate workflow.
 
-**Step 5 — Place order using your tool**
-Only after confirmation → call your order tool.
-Say "order confirm ho gaya" only AFTER tool returns success.
-If no order tool or it fails → "Order note kar liya, hamari team jald confirm karegi."
-NEVER fake a confirmation without tool success.
+5. Never invent missing entities.
 
+6. Extract only entities explicitly present
+   in the customer's message.
 
-## End of Call
-No auto "Anything else?" after every reply. \
-If customer says bye or thanks — close warmly, done. \
-You are {employee_name}. Act like it.
+7. If a greeting is combined with a restaurant request,
+   select the restaurant intent instead of GREETING_CIVILITY.
+
+8. MENU_PRICE_INQUIRY is specifically for asking
+   the price of a known/specific menu item.
+
+9. MENU_AVAILABILITY_INQUIRY is specifically for asking
+   whether a specific item is available.
+
+10. MENU_ITEM_DETAILS is for information about an item,
+    such as ingredients, spice level, dietary properties,
+    allergens, portion, or preparation.
+
+11. MENU_CATEGORY_LISTING is for browsing menu categories
+    or the full menu.
+
+12. FOOD_RECOMMENDATION is for personal recommendations.
+
+13. BESTSELLER_POPULAR_ITEMS is for asking what is popular,
+    famous, signature, or most ordered.
+
+14. ORDER_STATUS_INQUIRY is for an existing order.
+
+15. ORDER_CREATE is for creating or adding to an order.
+
+16. ORDER_CANCEL is for cancelling an existing order.
+
+17. TABLE_BOOKING_CREATE is for creating a reservation.
+
+18. TABLE_AVAILABILITY_CHECK is for checking whether
+    a table is available.
+
+19. TABLE_BOOKING_CANCEL is for cancelling an existing
+    reservation.
+
+20. COMPLAINT_FEEDBACK is for dissatisfaction or service issues.
+
+21. RESTAURANT_INFORMATION is for factual restaurant information
+    such as address, hours, parking, WiFi, delivery area, etc.
+
+EXAMPLES:
+
+"Good morning sir, Paneer tikka kitne ka hai?"
+→ MENU_PRICE_INQUIRY
+
+"Hello, kal 8 baje 4 logon ke liye table chahiye."
+→ TABLE_BOOKING_CREATE
+
+"Hi, mera order kaha tak pahucha?"
+→ ORDER_STATUS_INQUIRY
+
+"Kuch spicy suggest karo."
+→ FOOD_RECOMMENDATION
+
+"Restaurant kitne baje close hota hai?"
+→ RESTAURANT_INFORMATION
 """
 
 
-
-def build_system_prompt(ai_employee: dict) -> str:
+def build_system_prompt(employee_data_or_name=None, ai_employee_name: str = "Spark AI") -> str:
     """
-    VAPI-style prompt builder.
+    Build the system prompt for the restaurant AI employee.
 
-    Priority:
-      1. If ai_employee has a non-empty `system_prompt` field
-         (configured from the dashboard) → use it directly.
-         Supports inline variables:
-           {name}            → employee name
-           {role}            → employee role
-           {language}        → configured language
-           {restaurant_name} → organization/restaurant name
-      2. Fallback → hardcoded RESTAURANT_SYSTEM_PROMPT with
-         all existing placeholders filled in.
+    Accepts two calling styles:
+      1. build_system_prompt(employee_data: dict)   — used by agent.py / server.py
+      2. build_system_prompt(business_name: str, ai_employee_name: str) — legacy style
     """
+    if isinstance(employee_data_or_name, dict):
+        employee_data = employee_data_or_name
+        business_name = employee_data.get("business_name") or employee_data.get("name") or "Celebration Cafe"
+        ai_employee_name = employee_data.get("ai_employee_name") or employee_data.get("employee_name") or "Spark AI"
+    else:
+        business_name = employee_data_or_name or "Celebration Cafe"
 
-    restaurant_name = (
-        ai_employee.get("restaurant_name")
-        or ai_employee.get("business_name")
-        or "our restaurant"
-    )
-
-    # ── Priority 1: Custom dashboard prompt (VAPI-style) ─────────────────────
-    custom_prompt = ai_employee.get("system_prompt")
-    if custom_prompt and custom_prompt.strip():
-        return (
-            custom_prompt.strip()
-            .replace("{name}",            ai_employee.get("name")     or "Assistant")
-            .replace("{role}",            ai_employee.get("role")     or "assistant")
-            .replace("{language}",        ai_employee.get("language") or "Hindi")
-            .replace("{restaurant_name}", restaurant_name)
-        )
-
-    # ── Priority 2: Hardcoded RESTAURANT_SYSTEM_PROMPT (fallback) ────────────
-    prompt = RESTAURANT_SYSTEM_PROMPT
-
-    prompt = prompt.replace(
-        "{employee_name}",
-        ai_employee.get("name") or "Restaurant Assistant",
-    )
-
-    prompt = prompt.replace(
-        "{employee_role}",
-        ai_employee.get("role") or "restaurant employee",
-    )
-
-    prompt = prompt.replace(
-        "{persona_line}",
-        (
-            f"Your personality: {ai_employee.get('persona')}"
-            if ai_employee.get("persona")
-            else ""
-        ),
-    )
-
-    prompt = prompt.replace(
-        "{persona}",
-        ai_employee.get("persona") or "PROFESSIONAL",
-    )
-
-    prompt = prompt.replace(
-        "{employee_language}",
-        ai_employee.get("language") or "Hinglish",
-    )
-
-    # greeting_message: use configured value, or build a natural Hinglish default
-    greeting = (
-        ai_employee.get("greeting_message")
-        or f"Namaste! {restaurant_name} mein aapka swagat hai, main {ai_employee.get('name') or 'aapki sahayak'} bol raha hoon — kaise madad kar sakta hoon?"
-    )
-    prompt = prompt.replace("{greeting_message}", greeting)
-
-    prompt = prompt.replace("{restaurant_name}", restaurant_name)
-
-    return prompt
+    return f"""You are {ai_employee_name}, a friendly AI assistant for {business_name}.
+VERY IMPORTANT RULES: This assistant is operating on a voice phone call or chat.
+Keep responses concise, helpful, and natural in Hinglish / English.
+{RESTAURANT_INTENT_PROMPT}"""

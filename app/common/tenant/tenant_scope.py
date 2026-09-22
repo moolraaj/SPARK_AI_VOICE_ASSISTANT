@@ -20,6 +20,32 @@ def apply_tenant_filter(current_user: Dict[str, Any], query: Dict[str, Any] | No
     return filter_query
 
 
+def apply_tenant_filter_by_field(
+    current_user: Dict[str, Any],
+    field: str,
+    value: str,
+    query: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """
+    Applies multi-tenant data isolation filter on any custom field (not just owner_id).
+    - If user is SUPER_ADMIN: returns query as is (no restriction).
+    - Otherwise: adds {field: value} restriction to the query.
+
+    Example:
+        apply_tenant_filter_by_field(current_user, field="tenant_id", value=org_id)
+    """
+    filter_query = dict(query) if query else {}
+
+    if not current_user:
+        return filter_query
+
+    role = str(current_user.get("role", "")).upper()
+    if role != "SUPER_ADMIN":
+        filter_query[field] = value
+
+    return filter_query
+
+
 def validate_resource_ownership(resource_owner_id: str, current_user: Dict[str, Any]) -> bool:
     """
     Central helper to validate single resource ownership by matching ID & checking Role.
@@ -35,3 +61,19 @@ def validate_resource_ownership(resource_owner_id: str, current_user: Dict[str, 
 
     user_id = str(current_user.get("_id"))
     return str(resource_owner_id) == user_id
+
+
+def require_role(current_user: Dict[str, Any], *allowed_roles: str) -> bool:
+    """
+    Check if current user has one of the allowed roles.
+    - Returns True if user's role is in allowed_roles list.
+    - Role comparison is case-insensitive.
+
+    Example:
+        require_role(current_user, "BUSINESS_OWNER", "SUPER_ADMIN")
+    """
+    if not current_user:
+        return False
+
+    role = str(current_user.get("role", "")).upper()
+    return role in [r.upper() for r in allowed_roles]

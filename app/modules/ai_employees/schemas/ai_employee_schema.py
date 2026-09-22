@@ -20,6 +20,12 @@ class AIEmployeePersona(str, Enum):
     PROFESSIONAL = "PROFESSIONAL"
 
 
+class AIEmployeeLanguage(str, Enum):
+    EN       = "en"
+    HI       = "hi"
+    HINGLISH = "hinglish"
+
+
 # ─── Full Model (internal use) ─────────────────────────────────────────────────
 
 class AIEmployee(BaseModel):
@@ -29,10 +35,7 @@ class AIEmployee(BaseModel):
     name:             str
     role:             AIEmployeeRole
     persona:          AIEmployeePersona
-    language:         str
-    greeting_message: Optional[str] = None
-    voice_id:         Optional[str] = None
-    system_prompt:    Optional[str] = None   # Custom VAPI-style prompt from dashboard
+    language:         AIEmployeeLanguage
     is_active:        bool = True
     created_at:       datetime
     updated_at:       datetime
@@ -45,23 +48,17 @@ class CreateAIEmployeeRequest(BaseModel):
     name:             str = Field(..., min_length=2, max_length=100)
     role:             AIEmployeeRole
     persona:          AIEmployeePersona
-    language:         str = Field(default="en")
-    greeting_message: Optional[str] = None
-    voice_id:         Optional[str] = None
-    system_prompt:    Optional[str] = None   # Free-form custom prompt (VAPI-style)
+    language:         AIEmployeeLanguage = Field(default=AIEmployeeLanguage.HINGLISH)
 
 
 # ─── Update Request ───────────────────────────────────────────────────────────
 
 class UpdateAIEmployeeRequest(BaseModel):
-    name:             Optional[str]               = Field(None, min_length=2, max_length=100)
-    role:             Optional[AIEmployeeRole]    = None
-    persona:          Optional[AIEmployeePersona] = None
-    language:         Optional[str]               = None
-    greeting_message: Optional[str]               = None
-    voice_id:         Optional[str]               = None
-    is_active:        Optional[bool]              = None
-    system_prompt:    Optional[str]               = None   # Update custom prompt
+    name:             Optional[str]                = Field(None, min_length=2, max_length=100)
+    role:             Optional[AIEmployeeRole]     = None
+    persona:          Optional[AIEmployeePersona]  = None
+    language:         Optional[AIEmployeeLanguage] = None
+    is_active:        Optional[bool]               = None
 
 
 # ─── Response ─────────────────────────────────────────────────────────────────
@@ -73,10 +70,7 @@ class AIEmployeeResponse(BaseModel):
     name:             str
     role:             AIEmployeeRole
     persona:          AIEmployeePersona
-    language:         str
-    greeting_message: Optional[str]
-    voice_id:         Optional[str]
-    system_prompt:    Optional[str]               # Custom prompt configured from dashboard
+    language:         AIEmployeeLanguage
     is_active:        bool
     created_at:       datetime
     updated_at:       datetime

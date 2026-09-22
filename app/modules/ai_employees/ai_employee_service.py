@@ -13,7 +13,7 @@ from app.modules.organizations.organization_repository import OrganizationReposi
 from app.modules.businesses.business_platform.business_platform_repository import BusinessPlatformRepository
 
 
-from app.common.tenant.tenant_scope import apply_tenant_filter, validate_resource_ownership
+from app.common.tenant.tenant_scope import apply_tenant_filter, validate_resource_ownership, require_role
 
 
 class AIEmployeeService:
@@ -94,6 +94,10 @@ class AIEmployeeService:
 
     async def create(self, request: CreateAIEmployeeRequest, current_user: dict):
 
+        # ── Role check: STRICTLY ONLY BUSINESS_OWNER can create AI employee (Super Admin excluded) ──
+        if not require_role(current_user, "BUSINESS_OWNER"):
+            return {"success": False, "message": "Only Business Owners can create an AI employee. Super Admin cannot create AI employees."}
+
         # ── Validate org exists ───────────────────────────────────────────────
         try:
             org_object_id = ObjectId(request.org_id)
@@ -107,6 +111,14 @@ class AIEmployeeService:
         # ── Only owner of this org can create AI employee ─────────────────────
         if org["owner_id"] != str(current_user["_id"]):
             return {"success": False, "message": "You are not authorized to create AI employee for this organization."}
+
+        # ── 1 AI Employee per Organization limit ─────────────────────────────
+        existing_count = await self.repository.count_by_org(request.org_id)
+        if existing_count >= 1:
+            return {
+                "success": False,
+                "message": "Only 1 AI employee is allowed per organization. An AI employee already exists for this organization."
+            }
 
         # ── Auto-fetch business_type_id from org → business_platform ──────────
         try:
@@ -132,9 +144,6 @@ class AIEmployeeService:
             "role":             request.role,
             "persona":          request.persona,
             "language":         request.language,
-            "greeting_message": request.greeting_message,
-            "voice_id":         request.voice_id,
-            "system_prompt":    request.system_prompt,  # VAPI-style custom prompt
             "is_active":        True,
             **timestamps(),
         }
@@ -163,6 +172,10 @@ class AIEmployeeService:
         request: UpdateAIEmployeeRequest,
         current_user: dict,
     ):
+        # ── Role check: STRICTLY ONLY BUSINESS_OWNER can update AI employee (Super Admin excluded) ──
+        if not require_role(current_user, "BUSINESS_OWNER"):
+            return {"success": False, "message": "Only Business Owners can update AI employees. Super Admin cannot update AI employees."}
+
         try:
             object_id = ObjectId(ai_employee_id)
         except InvalidId:
@@ -200,6 +213,10 @@ class AIEmployeeService:
     # ─── Delete ───────────────────────────────────────────────────────────────
 
     async def delete(self, ai_employee_id: str, current_user: dict):
+        # ── Role check: STRICTLY ONLY BUSINESS_OWNER can delete AI employee (Super Admin excluded) ──
+        if not require_role(current_user, "BUSINESS_OWNER"):
+            return {"success": False, "message": "Only Business Owners can delete AI employees. Super Admin cannot delete AI employees."}
+
         try:
             object_id = ObjectId(ai_employee_id)
         except InvalidId:

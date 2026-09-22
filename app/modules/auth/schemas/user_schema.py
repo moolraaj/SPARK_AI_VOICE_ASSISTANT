@@ -6,7 +6,8 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 class UserRole(str, Enum):
     SUPER_ADMIN = "SUPER_ADMIN"
     BUSINESS_OWNER = "BUSINESS_OWNER"
-    CUSTOMER = "GUEST"
+    USER = "USER"
+    CUSTOMER = "USER"
 
 
 class RegisterRequest(BaseModel):
@@ -15,6 +16,7 @@ class RegisterRequest(BaseModel):
     phone_number: str = Field(..., min_length=10, max_length=15)
     password: str = Field(..., min_length=8)
     confirm_password: str = Field(..., min_length=8)
+    role: UserRole = UserRole.USER
 
     @field_validator("confirm_password")
     @classmethod

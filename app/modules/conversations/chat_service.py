@@ -71,9 +71,11 @@ class ChatService:
             if not owner_id:
                 return {"success": False, "message": "Could not resolve owner organization for this AI employee."}
 
+            org_id_val = str(employee.get("org_id")) if employee.get("org_id") else ""
             self._emp_cache[employee_id] = {
                 "employee":  employee,
                 "owner_id":  owner_id,
+                "org_id":    org_id_val,
                 "org_name":  biz_name or "",
                 "cached_at": _time.time(),
             }
@@ -185,10 +187,12 @@ class ChatService:
         cart = result["cart"]
         retrieved_items = result["retrieved_items"]
 
-        # Persist conversation and updated messages in MongoDB (using customer_id reference)
+        current_org_id = cached_emp_info.get("org_id") or str(employee.get("org_id", ""))
+        # Persist conversation and updated messages in MongoDB (using customer_id & org_id references)
         await self.conversation_repo.save_message(
             session_id=active_session_id,
             owner_id=owner_id,
+            org_id=current_org_id,
             employee_id=employee_id,
             user_message=user_message,
             assistant_reply=reply,
@@ -309,16 +313,48 @@ class ChatService:
             }
         }
 
-    async def get_conversations_by_phone(self, phone_number: str, page: int = 1, limit: int = 20) -> dict:
-        # Resolve customer_id from customers collection by phone_number
-        customer = await self.customer_repo.customers.find_one({"phone_number": phone_number.strip()})
-        if not customer:
-            return {"success": True, "data": [], "total": 0, "page": page, "limit": limit}
+    async def get_conversations_by_phone(
+        self,
+        phone_number: str,
+        org_id: str | None = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> dict:
+        phone_clean = phone_number.strip()
+        from bson import ObjectId
+        from bson.errors import InvalidId
 
-        customer_id = str(customer["_id"])
+        customer = await self.customer_repo.customers.find_one({"phone_number": phone_clean})
+        if not customer:
+            try:
+                customer = await self.customer_repo.customers.find_one({"_id": ObjectId(phone_clean)})
+            except (InvalidId, TypeError):
+                customer = None
+
+        query_conditions = []
+        if customer:
+            c_id = str(customer["_id"])
+            c_phone = customer.get("phone_number", "")
+            query_conditions.append({"customer_id": c_id})
+            if c_phone:
+                query_conditions.append({"session_id": {"$regex": c_phone}})
+        else:
+            query_conditions.append({"customer_id": phone_clean})
+            query_conditions.append({"session_id": {"$regex": phone_clean}})
+
+        filter_query: dict[str, Any] = {"$or": query_conditions}
+        if org_id:
+            filter_query = {
+                "$and": [
+                    {"$or": query_conditions},
+                    {"$or": [{"org_id": org_id}, {"org_id": {"$exists": False}}]}
+                ]
+            }
+
         skip = (page - 1) * limit
-        conversations = await self.conversation_repo.get_by_customer_id(customer_id, skip=skip, limit=limit)
-        total_records = await self.conversation_repo.count_by_customer_id(customer_id)
+        conversations = await self.conversation_repo.conversations.find(filter_query)\
+            .sort("updated_at", -1).skip(skip).limit(limit).to_list(length=limit)
+        total_records = await self.conversation_repo.conversations.count_documents(filter_query)
 
         clean_docs = []
         for doc in conversations:
@@ -326,10 +362,11 @@ class ChatService:
                 "id": str(doc["_id"]),
                 "session_id": doc["session_id"],
                 "owner_id": doc["owner_id"],
-                "employee_id": doc["employee_id"],
+                "org_id": doc.get("org_id"),
+                "employee_id": doc.get("employee_id"),
                 "customer_id": doc.get("customer_id"),
-                "customer_phone_number": customer.get("phone_number"),
-                "customer_name": customer.get("name"),
+                "customer_phone_number": customer.get("phone_number") if customer else phone_clean,
+                "customer_name": customer.get("name") if customer else None,
                 "message_count": len(doc.get("messages", [])),
                 "messages": doc.get("messages", []),
                 "latest_cart": doc.get("latest_cart", []),
@@ -344,3 +381,4 @@ class ChatService:
             "page": page,
             "limit": limit
         }
+

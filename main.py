@@ -18,11 +18,24 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting Spark AI Assistant Backend...")
     await mongodb.connect()
-    await redis_client.connect()
+    
+    # Auto-start Redis if daemon is not running
+    try:
+        await redis_client.connect()
+    except Exception:
+        print("⚡ Redis not running. Auto-starting redis-server daemon...")
+        import subprocess, asyncio
+        subprocess.run(["redis-server", "--daemonize", "yes"], check=False)
+        await asyncio.sleep(1)
+        try:
+            await redis_client.connect()
+        except Exception as re_err:
+            print(f"⚠️ Redis connection warning: {re_err}")
+
     try:
         await qdrant_store.connect()
     except Exception as e:
-        print(f"⚠️  Qdrant Store Connect Warning: {e}")
+        print(f"⚠️ Qdrant Store Connect Warning: {e}")
 
     yield
 
