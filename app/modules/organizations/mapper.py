@@ -13,6 +13,7 @@ def organization_response(org: dict) -> dict:
         "phone": org.get("phone"),
         "email": org.get("email"),
         "address": org.get("address"),
+        "hardware_device_id": org.get("hardware_device_id"),    # NEW
         "is_active": org["is_active"],
         "created_at": org["created_at"],
         "updated_at": org["updated_at"],

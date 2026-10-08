@@ -9,13 +9,13 @@ from langchain_core.messages import (
     SystemMessage,
 )
 
-from app.ai.graph.graph import SparkAgentGraph, RestaurantAgentGraph  # RestaurantAgentGraph kept for compat
+from app.ai.graph.graph import SparkAgentGraph
 from app.ai.context.session_context_resolver import SessionContextResolver
 from app.ai.prompts.prompt_builder import RuntimePromptBuilder
-from app.ai.prompts.restaurant_prompt import build_system_prompt  # legacy — still importable
+
 from app.database.mongodb import mongodb
 from app.modules.conversations.conversation_repository import ConversationRepository
-from app.core.datetime import timestamps
+
 
 
 # ============================================================
@@ -25,8 +25,8 @@ session_id = str(uuid.uuid4())   # ek hi conversation ke liye fixed rahega
 
 # Owner ka phone number = org ka DID number (same thing)
 # Jab customer yeh number call karta hai → org identify hoti hai
-OWNER_PHONE    = "6230397248"    # Owner's phone = DID number
-CUSTOMER_PHONE = "7018616800"    # Actual caller (customer)
+OWNER_PHONE    = "7807224726"    # Owner's phone = DID number
+CUSTOMER_PHONE = "6230097248"    # Actual caller (customer)
 
 DID_NUMBER = OWNER_PHONE         # same number — no separate field needed
 
@@ -97,22 +97,16 @@ def print_message(message):
                     print(content)
 
             elif isinstance(content, list):
-
                 for block in content:
-
                     if (
                         isinstance(block, dict)
                         and block.get("type") == "text"
                     ):
-
                         text = block.get("text")
-
                         if text and text.strip():
-
                             print("\n🤖 AI")
                             print("-" * 60)
                             print(text)
-
     # ========================================================
     # TOOL RESULT
     # ========================================================

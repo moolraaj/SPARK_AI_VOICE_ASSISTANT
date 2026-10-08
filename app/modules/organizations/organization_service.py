@@ -11,6 +11,8 @@ from .mapper import organization_response
 from .schemas.organization_schema import (
     CreateOrganizationRequest,
     UpdateOrganizationRequest,
+    LinkDeviceRequest,
+    UnlinkDeviceRequest,
 )
 from app.modules.auth.repository import AuthRepository
 
@@ -225,3 +227,165 @@ class OrganizationService:
             return {"success": False, "message": "Organization could not be deleted."}
 
         return {"success": True, "message": "Organization deleted successfully."}
+
+    # ─── Link Hardware Device to Org ──────────────────────────────────────────
+
+    async def link_device(
+        self,
+        organization_id: str,
+        request: LinkDeviceRequest,
+        current_user: dict,
+    ):
+        """
+        Link a hardware device_id to an organization.
+
+        Rules:
+        - Only the org owner (or SUPER_ADMIN) can link a device.
+        - If device_id is already linked to ANOTHER org, return an error.
+        - Saves device_id in org.hardware_device_id AND updates spark_devices
+          collection status → 'registered'.
+        """
+        try:
+            object_id = ObjectId(organization_id)
+        except InvalidId:
+            return {"success": False, "message": "Invalid organization id."}
+
+        org = await self.repository.get_by_id(object_id)
+        if not org:
+            return {"success": False, "message": "Organization not found."}
+
+        # Ownership check
+        if not validate_resource_ownership(org.get("owner_id"), current_user):
+            return {"success": False, "message": "You are not authorized to manage this organization."}
+
+        # Check: does THIS org ALREADY have a hardware device assigned?
+        current_linked_device = org.get("hardware_device_id")
+        if current_linked_device and current_linked_device != request.device_id:
+            return {
+                "success": False,
+                "message": (
+                    f"Organization '{org.get('name')}' already has device '{current_linked_device}' linked. "
+                    "Only 1 device can be assigned per organization. Please unlink the existing device first."
+                ),
+            }
+
+        # Check: is this device_id already linked to a DIFFERENT org?
+        existing_org = await self.repository.get_by_device_id(request.device_id)
+        if existing_org and str(existing_org["_id"]) != organization_id:
+            return {
+                "success": False,
+                "message": (
+                    f"Device '{request.device_id}' is already linked to org "
+                    f"'{existing_org.get('name', 'unknown')}'. "
+                    "Unlink it from that org first."
+                ),
+            }
+
+        # Save device_id on org
+        await self.repository.update(
+            object_id,
+            {"hardware_device_id": request.device_id, "updated_at": utc_now()},
+        )
+
+        # Update spark_devices collection: mark as registered
+        from app.database.mongodb import mongodb
+        await mongodb.database["spark_devices"].update_one(
+            {"device_id": request.device_id},
+            {"$set": {
+                "status": "registered",
+                "org_id": organization_id,
+                "linked_at": utc_now(),
+            }},
+            upsert=True,
+        )
+
+        return {
+            "success": True,
+            "message": f"Device '{request.device_id}' successfully linked to org '{org.get('name')}'.",
+            "data": {
+                "org_id": organization_id,
+                "org_name": org.get("name"),
+                "device_id": request.device_id,
+            },
+        }
+
+    # ─── Unlink Hardware Device from Org ──────────────────────────────────────
+
+    async def unlink_device(
+        self,
+        organization_id: str,
+        current_user: dict,
+    ):
+        """
+        Remove the hardware_device_id from an organization (unlink device).
+        """
+        try:
+            object_id = ObjectId(organization_id)
+        except InvalidId:
+            return {"success": False, "message": "Invalid organization id."}
+
+        org = await self.repository.get_by_id(object_id)
+        if not org:
+            return {"success": False, "message": "Organization not found."}
+
+        if not validate_resource_ownership(org.get("owner_id"), current_user):
+            return {"success": False, "message": "You are not authorized to manage this organization."}
+
+        device_id = org.get("hardware_device_id")
+        if not device_id:
+            return {"success": False, "message": "No device is linked to this organization."}
+
+        # Remove from org
+        await self.repository.update(
+            object_id,
+            {"hardware_device_id": None, "updated_at": utc_now()},
+        )
+
+        # Update spark_devices collection: mark as unregistered
+        from app.database.mongodb import mongodb
+        await mongodb.database["spark_devices"].update_one(
+            {"device_id": device_id},
+            {"$set": {"status": "unregistered", "org_id": None}},
+        )
+
+        return {
+            "success": True,
+            "message": f"Device '{device_id}' unlinked from org '{org.get('name')}'.",
+        }
+
+    # ─── List All Unregistered Spark Devices ──────────────────────────────────
+
+    async def get_all_devices(self, current_user: dict):
+        """
+        Return all devices seen in spark_devices collection.
+        SUPER_ADMIN sees all. BUSINESS_OWNER sees only devices linked to their orgs.
+        """
+        from app.database.mongodb import mongodb
+
+        role = str(current_user.get("role", "")).upper()
+
+        if role == "SUPER_ADMIN":
+            devices = await mongodb.database["spark_devices"].find({}).to_list(length=None)
+        else:
+            # Get all org_ids this owner has
+            owner_id = str(current_user["_id"])
+            owner_orgs = await self.repository.get_all_by_owner(owner_id)
+            owner_org_ids = [str(o["_id"]) for o in owner_orgs]
+
+            # Devices linked to their orgs OR unregistered (status=unregistered shows to admin)
+            devices = await mongodb.database["spark_devices"].find(
+                {"org_id": {"$in": owner_org_ids + [None]}}
+            ).to_list(length=None)
+
+        result = []
+        for d in devices:
+            result.append({
+                "device_id":   d.get("device_id"),
+                "status":      d.get("status", "unregistered"),
+                "org_id":      d.get("org_id"),
+                "first_seen":  d.get("first_seen"),
+                "last_seen":   d.get("last_seen"),
+                "linked_at":   d.get("linked_at"),
+            })
+
+        return {"success": True, "data": result, "total": len(result)}

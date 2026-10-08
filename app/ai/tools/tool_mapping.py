@@ -6,6 +6,7 @@ from .restaurant.langchain_tools import (
 # ── Tool Registry — business_type → tools list ──────────────────────────────
 # Add new domain tools here as new business types are supported.
 # GENERAL is used as a fallback for any unknown/unsupported business type.
+
 TOOL_REGISTRY = {
     "RESTAURANT": RESTAURANT_TOOLS,
     "HOTEL":      RESTAURANT_TOOLS,     # TODO: replace with HOTEL_TOOLS when ready

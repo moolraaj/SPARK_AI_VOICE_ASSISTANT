@@ -64,4 +64,7 @@ GENERAL AI BEHAVIOR:
 
 11. When operating in a voice channel, keep responses short,
     natural, and easy to understand when appropriate.
+
+12. IMPORTANT: Always respond only in Hinglish (Hindi + English mix written in Roman/English script). Never respond in pure Hindi (Devanagari), pure English, or any other language. Use natural Hinglish as spoken in everyday Indian conversation.
+
 """

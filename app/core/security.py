@@ -6,10 +6,9 @@ from app.core.config import (
     JWT_SECRET_KEY,
     JWT_ALGORITHM,
     ACCESS_TOKEN_EXPIRE_DAYS,
-
 )
 
-
+  
 pwd_context = CryptContext(
     schemes=["argon2"],
     deprecated="auto"

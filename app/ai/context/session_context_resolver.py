@@ -84,17 +84,22 @@ class SessionContextResolver:
 
     async def resolve(
         self,
-        did_number: str,
+        did_number: Optional[str] = None,
         caller_phone: Optional[str] = None,
+        device_id: Optional[str] = None,
     ) -> ResolvedSessionContext:
         """
-        Resolve the full session context from the DID number that was called.
+        Resolve the full session context from the DID number that was called,
+        OR from the registered hardware device ID.
 
         Args:
             did_number:    The Vobiz DID number the customer dialled.
                            Must match an org's did_number field in MongoDB.
             caller_phone:  The actual caller's phone number (customer).
                            Used to look up / create a customer record.
+            device_id:     Hardware device ID (e.g. SPARK-F89A4E40C86C).
+                           Used when did_number is not available — org is looked
+                           up by its registered hardware_device_id field.
 
         Returns:
             ResolvedSessionContext — all data needed to start an AI session.
@@ -103,20 +108,25 @@ class SessionContextResolver:
             RuntimeError — with a descriptive message at the first failing step.
         """
 
-        # ── Step 1: DID → Organization ────────────────────────────────────────
-        # Owner's registered phone number = DID number = number customer calls.
-        # We first try the did_number field; if not set yet (old records),
-        # also try the org's phone field as a fallback.
-        organization = await self._org_repo.get_by_did_number(did_number)
+        # ── Step 1: Find Organization ─────────────────────────────────────────
+        organization = None
+
+        # Priority 1: did_number / phone number se seedha lookup
+        if did_number:
+            organization = await self._org_repo.get_by_phone(did_number)
+
+        # Priority 2: agar phone / did_number nahi mila to device_id se lookup
+        if not organization and device_id:
+            organization = await self._org_repo.get_by_device_id(device_id)
+            if organization:
+                # org ke phone ko effective number maan lo
+                did_number = organization.get("phone") or organization.get("did_number") or did_number
 
         if not organization:
-            # Fallback: check org.phone (for orgs created before did_number field was added)
-            organization = await self._org_repo.organizations.find_one({"phone": did_number})
-
-        if not organization:
+            detail = f"did_number={did_number}" if did_number else f"device_id={device_id}"
             raise RuntimeError(
-                f"[SessionContextResolver] No organization found for DID number: {did_number}. "
-                "Ensure the DID is assigned to an org in the DB."
+                f"[SessionContextResolver] No organization found for {detail}. "
+                "Ensure the DID or hardware_device_id is assigned to an org in the DB."
             )
 
         org_id            = str(organization["_id"])

@@ -27,7 +27,7 @@ class AgentNodes:
         self.llm = ChatOpenAI(
             model=MODEL_NAME,
             temperature=0.2,
-            max_tokens=150,
+            max_tokens=400,   # 150 was too low — tool call JSON schema alone uses ~80-120 tokens
             streaming=True,   # Required for sentence-by-sentence TTS streaming
         )
 
@@ -85,11 +85,23 @@ class AgentNodes:
             else:
                 compacted_messages.append(msg)
 
-        # ── LLM call ─────────────────────────────────────────────────────────
+        # ── LLM call (streaming) ──────────────────────────────────────────────
+        # NOTE: astream() is used instead of ainvoke() so that LangGraph's
+        # astream_events() emits on_chat_model_stream events per token.
+        # ainvoke() inside a graph node does NOT trigger those events,
+        # which means hardware_websocket.py never captures the LLM reply.
+        # Chunks are accumulated so tool_calls are preserved for tools_condition.
         import time
         t_start  = time.perf_counter()
-        response = await llm.ainvoke(compacted_messages)
-        llm_ms   = (time.perf_counter() - t_start) * 1000
+
+        response = None
+        async for chunk in llm.astream(compacted_messages):
+            if response is None:
+                response = chunk
+            else:
+                response = response + chunk
+
+        llm_ms = (time.perf_counter() - t_start) * 1000
         print(f"⏱️ LLM Call Latency: {llm_ms:.2f} ms ({llm_ms/1000:.3f}s)")
 
         return {"messages": [response]}

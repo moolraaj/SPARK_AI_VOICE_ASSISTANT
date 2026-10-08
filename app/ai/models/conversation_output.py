@@ -4,22 +4,12 @@ from pydantic import BaseModel, Field
 
 
 class ConversationUnderstanding(BaseModel):
-
-    # =========================================================
-    # INTENT
-    # =========================================================
-
     intent: str = Field(
         description=(
             "What the customer is actually trying to "
             "accomplish in the current turn."
         )
     )
-
-    # =========================================================
-    # TONE
-    # =========================================================
-
     tone: str = Field(
         description=(
             "The customer's conversational tone, such as "
@@ -27,11 +17,6 @@ class ConversationUnderstanding(BaseModel):
             "urgent, confused, positive, or appreciative."
         )
     )
-
-    # =========================================================
-    # LANGUAGE
-    # =========================================================
-
     language: str = Field(
         description=(
             "The customer's communication language/style. "
@@ -41,10 +26,6 @@ class ConversationUnderstanding(BaseModel):
         )
     )
 
-    # =========================================================
-    # ENTITIES
-    # =========================================================
-
     entities: dict[str, Any] = Field(
         default_factory=dict,
         description=(
@@ -52,10 +33,6 @@ class ConversationUnderstanding(BaseModel):
             "customer or safely resolved from conversation context."
         )
     )
-
-    # =========================================================
-    # REQUESTED INFORMATION
-    # =========================================================
 
     requested_information: list[str] = Field(
         default_factory=list,
@@ -65,10 +42,6 @@ class ConversationUnderstanding(BaseModel):
         )
     )
 
-    # =========================================================
-    # ANSWER SCOPE
-    # =========================================================
-
     answer_scope: str = Field(
         description=(
             "Defines what information should be included in "
@@ -77,10 +50,6 @@ class ConversationUnderstanding(BaseModel):
             "category_listing, order_action, general_information."
         )
     )
-
-    # =========================================================
-    # TOOL
-    # =========================================================
 
     needs_tool: bool = Field(
         description=(

@@ -18,8 +18,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting Spark AI Assistant Backend...")
     await mongodb.connect()
-    
-    # Auto-start Redis if daemon is not running
+
     try:
         await redis_client.connect()
     except Exception:
@@ -63,7 +62,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.voice.telephony.hardware_websocket import router as hardware_websocket_router
+
 app.include_router(api_router)
+app.include_router(hardware_websocket_router)
 
 app.add_exception_handler(
     RequestValidationError,
@@ -86,5 +88,15 @@ async def home():
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # reload=True restarts the server on every file save, which drops the ESP32
+    # WebSocket mid-call. Opt in with UVICORN_RELOAD=1 for pure API development.
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=os.getenv("UVICORN_RELOAD", "0") == "1",
+        ws_ping_interval=30,
+        ws_ping_timeout=30,
+    )

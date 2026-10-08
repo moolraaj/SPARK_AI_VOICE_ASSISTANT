@@ -38,6 +38,7 @@ VOBIZ_SIP_PASSWORD = os.getenv("VOBIZ_SIP_PASSWORD", "")
 
 
 class Settings:
+    
     MONGODB_URI: str = MONGODB_URI
     DATABASE_NAME: str = DATABASE_NAME
     JWT_SECRET_KEY: str = JWT_SECRET_KEY
@@ -68,6 +69,5 @@ class Settings:
     VOBIZ_SIP_ADDRESS: str = VOBIZ_SIP_ADDRESS
     VOBIZ_SIP_USERNAME: str = VOBIZ_SIP_USERNAME
     VOBIZ_SIP_PASSWORD: str = VOBIZ_SIP_PASSWORD
-
 
 settings = Settings()

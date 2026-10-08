@@ -13,6 +13,7 @@ from app.modules.businesses.business_platform.business_platform_route import (
 from app.modules.organizations.organization_route import (
     organization_router,
     organizations_router,
+    devices_router,
 )
 from app.modules.ai_employees.ai_employee_route import (
     ai_employee_router,
@@ -43,6 +44,7 @@ from app.modules.platform_configs.platform_config_route import (
     platform_configs_router,
     platform_config_router,
 )
+from app.voice.telephony.hardware_websocket import router as hardware_websocket_router
      
 
 from app.rag.vectorstore.qdrant_route import vector_store_router
@@ -63,6 +65,7 @@ api_router.include_router(business_platform_router)
 
 api_router.include_router(organizations_router)
 api_router.include_router(organization_router)
+api_router.include_router(devices_router)
 
 api_router.include_router(vector_store_router)
 
@@ -91,3 +94,4 @@ api_router.include_router(live_feed_router)
 
 api_router.include_router(platform_configs_router)
 api_router.include_router(platform_config_router)
+api_router.include_router(hardware_websocket_router)

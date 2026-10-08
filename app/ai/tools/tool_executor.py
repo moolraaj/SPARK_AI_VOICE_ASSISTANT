@@ -6,11 +6,8 @@ from .tool_mapping import TOOL_REGISTRY
 
 
 class ToolExecutor:
-
     def __init__(self):
-
         self.tool_registry = TOOL_REGISTRY
-
         print(
             "REGISTERED RESTAURANT TOOLS:",
             [
@@ -29,27 +26,21 @@ class ToolExecutor:
         arguments: dict[str, Any] | None = None,
         context: dict[str, Any] | None = None,
     ) -> ToolResult:
-
         arguments = arguments or {}
         context = context or {}
-
         if not business_type:
             raise ValueError(
                 "business_type is required."
             )
-
         business_type = business_type.upper().strip()
-
         tools = self.tool_registry.get(
             business_type
         )
-
         if not tools:
             raise ValueError(
                 f"No tools registered for business type: "
                 f"{business_type}"
             )
-
         tool = next(
             (
                 registered_tool
@@ -58,13 +49,11 @@ class ToolExecutor:
             ),
             None,
         )
-
         if tool is None:
             raise ValueError(
                 f"Tool '{tool_name}' is not registered "
                 f"for business type '{business_type}'."
             )
-
         tool_arguments = {
             **context,
             **arguments,
