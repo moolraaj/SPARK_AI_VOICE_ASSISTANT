@@ -140,7 +140,6 @@ volatile uint32_t audioRxBytes       = 0;
 volatile uint32_t audioDroppedBytes  = 0;
 uint32_t audioSentBytes  = 0;
 uint32_t audioSentFrames = 0;
-uint32_t audioPendingLen = 0;
 
 volatile uint32_t lastCbMs     = 0;
 volatile uint32_t maxCbGapMs   = 0;
@@ -484,22 +483,10 @@ uint32_t hfpOutgoingCallback(uint8_t* buf, uint32_t len)
   }
   if (avail < len) {
     txUnderruns++;
-
-    // Bridge a short network scheduling gap with silence instead of forcing
-    // another 200 ms prebuffer cycle (the audible "stuck" behavior).
-    uint32_t age = millis() - txLastRxMs;
-    if (age <= 120) {
-      uint32_t n = txRingRead(buf, len);
-      if (n < len) memset(buf + n, 0, len - n);
-      txBytesSent += n;
-      aiTtsPlayedBytes += n;
-      return len;
+    txPlaying = false;                       // re-buffer, ring CLEAR mat karo
+    if ((millis() - txLastRxMs) > 800) {     // 300 -> 800
+      aiTtsActive = false; aiTtsStopTime = millis(); aiConversationTurn++;
     }
-
-    txPlaying = false;
-    aiTtsActive = false;
-    aiTtsStopTime = millis();
-    aiConversationTurn++;
     return 0;
   }
   uint32_t n = txRingRead(buf, len);
@@ -943,10 +930,10 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length)
 
         // IMPORTANT: wake the HFP outgoing callback now. Without this,
         // playback may wait for another incoming SCO callback.
-        if (audioConnected && slcConnected)
-        {
-          esp_hf_client_outgoing_data_ready();
-        }
+        // if (audioConnected && slcConnected)
+        // {
+        //   esp_hf_client_outgoing_data_ready();
+        // }
       }  
 
       static uint32_t binCount = 0;
@@ -1461,7 +1448,6 @@ void handlePendingEvents()
     pendingCallEnded = false;
     webSocket.sendTXT("{\"event\":\"call_ended\"}");
     Serial.println("call_ended SENT");
-    audioPendingLen = 0;
     ringClear();
     txRingClear();
     logAI("📤", "AI-CALL", "Sent call_ended to backend");
@@ -1506,26 +1492,23 @@ void handleAudioStreaming()
 
   for (int i = 0; i < 8; i++)
   {
-    if (audioPendingLen == 0)
-    {
-      uint32_t avail = ringAvailable() & ~1u;
-      if (avail < AUDIO_SEND_MIN) break;
+    uint32_t avail = ringAvailable() & ~1u;
+    if (avail < AUDIO_SEND_MIN) break;
 
-      uint32_t want = avail < AUDIO_SEND_CHUNK ? avail : AUDIO_SEND_CHUNK;
-      audioPendingLen = ringRead(chunk, want) & ~1u;
-      if (audioPendingLen == 0) break;
-    }
+    uint32_t want = avail < AUDIO_SEND_CHUNK ? avail : AUDIO_SEND_CHUNK;
+    uint32_t n = ringRead(chunk, want);
+    n &= ~1u;
+    if (n == 0) break;
 
-    if (webSocket.sendBIN(chunk, audioPendingLen))
+    if (webSocket.sendBIN(chunk, n))
     {
-      audioSentBytes += audioPendingLen;
+      audioSentBytes += n;
       audioSentFrames++;
 
       // ===== AI LOG: User ki awaaz AI ko bhej rahe hain =====
-      aiUserSpeechBytes += audioPendingLen;
+      aiUserSpeechBytes += n;
       aiUserSpeechChunks++;
       aiLastUserSpeechMs = millis();
-      audioPendingLen = 0;
 
       // Pehla chunk aaye to log karo (spam control)
       if (aiUserSpeechChunks == 1)
@@ -1536,8 +1519,8 @@ void handleAudioStreaming()
     }
     else
     {
-      Serial.println("[WS AUDIO] sendBIN failed; chunk retained for retry");
-      logAI("❌", "AI-HEAR", "Failed to send user audio; retrying retained chunk");
+      Serial.println("[WS AUDIO] sendBIN failed");
+      logAI("❌", "AI-HEAR", "Failed to send user audio to backend");
       break;
     }
     delay(0);
