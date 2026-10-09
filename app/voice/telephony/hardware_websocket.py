@@ -53,7 +53,7 @@ MIN_TRANSCRIPT_CHARS = int(os.getenv("MIN_TRANSCRIPT_CHARS", "3"))
 # TTS PLAYBACK CONFIG
 # ============================================================
 TTS_SEND_CHUNK = 480
-TTS_LEAD_SEC = 0.30
+TTS_LEAD_SEC = 0.45
 DEFAULT_VOICE_ID = "shubh"
 
 _SENT_SPLIT = re.compile(r"(?<=[.!?।])\s+|\n+")
@@ -266,20 +266,42 @@ class PacedPCMSender:
             self.rate = rate
 
         print(f"🔊 [TTS OUTGOING] Device={self.device_id} | {len(pcm)} B @ {rate} Hz | text='{text[:60]}'", flush=True)
+        send_started = time.monotonic()
+        chunks_sent = 0
+        max_ahead = 0.0
 
         try:
             await self.ws.send_text(json.dumps({"event": "ai_audio_start", "sample_rate": rate}))
 
+
             for i in range(0, len(pcm), TTS_SEND_CHUNK):
                 chunk = pcm[i:i + TTS_SEND_CHUNK]
-                await self.ws.send_bytes(chunk)
-                self.sent += len(chunk)
 
-                ahead = (self.t0 + self.sent / bps) - time.monotonic()
+                await self.ws.send_bytes(chunk)
+
+                # Count each successfully sent chunk exactly once.
+                self.sent += len(chunk)
+                chunks_sent += 1
+
+                ahead = (
+                    self.t0 + self.sent / bps
+                ) - time.monotonic()
+
+                max_ahead = max(max_ahead, ahead)
+
                 if ahead > TTS_LEAD_SEC:
                     await asyncio.sleep(ahead - TTS_LEAD_SEC)
 
+
             await self.ws.send_text(json.dumps({"event": "ai_audio_end"}))
+            print(
+                f"✅ [TTS SEND DONE] bytes={len(pcm)} "
+                f"chunks={chunks_sent} rate={rate} "
+                f"audio_duration={len(pcm) / bps:.2f}s "
+                f"send_elapsed_ms={(time.monotonic() - send_started) * 1000:.0f} "
+                f"max_ahead={max_ahead:.2f}s",
+                flush=True,
+            )
             return True
 
         except asyncio.CancelledError:

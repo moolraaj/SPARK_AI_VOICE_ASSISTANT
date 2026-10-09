@@ -371,10 +371,16 @@ class UtteranceSegmenter:
             self.preroll_ms -= old
         return None
 
+    
     def _feed_speaking(
-        self, chunk: bytes, duration_ms: float, rms: int, threshold: float
+        self,
+        chunk: bytes,
+        duration_ms: float,
+        rms: int,
+        threshold: float,
     ) -> Optional[tuple[bytes, int]]:
         loud = rms >= threshold * STT_KEEP_RATIO
+
         self.buf += chunk
         self.total_ms += duration_ms
 
@@ -392,20 +398,39 @@ class UtteranceSegmenter:
             return None
 
         pcm = bytes(self.buf)
-        speech_rms = _rms(pcm[: self.last_loud_len])
+        speech_rms = _rms(pcm[:self.last_loud_len])
         speech_ms = self.speech_ms
+
         enough = speech_ms >= STT_MIN_SPEECH_MS
+        end_reason = (
+            "silence"
+            if self.silence_ms >= STT_SILENCE_MS
+            else "max_duration"
+        )
+
+        print(
+            f"🧩 [VAD END] reason={end_reason} "
+            f"total={self.total_ms:.0f}ms "
+            f"speech={speech_ms:.0f}ms "
+            f"silence={self.silence_ms:.0f}ms "
+            f"bytes={len(pcm)} "
+            f"rms={speech_rms} "
+            f"accepted={enough}",
+            flush=True,
+        )
+
         self.reset()
 
         if enough:
             return pcm, speech_rms
 
         print(
-            f"🗑️ [VAD DROP] utterance chhoti thi: "
-            f"speech={speech_ms:.0f}ms < {STT_MIN_SPEECH_MS}ms",
+            f"🗑️ [VAD DROP] speech={speech_ms:.0f}ms "
+            f"< minimum={STT_MIN_SPEECH_MS}ms",
             flush=True,
         )
         return None
+
 
 
 # ============================================================
@@ -603,6 +628,15 @@ class SpeechTranscriber:
 
         pcm, energy = result
         self._ensure_worker(on_text)
+        duration = len(pcm) / (2 * self.sample_rate)
+
+        print(
+            f"📥 [STT QUEUE] duration={duration:.2f}s "
+            f"bytes={len(pcm)} rms={energy} "
+            f"rate={self.sample_rate} "
+            f"queue={self._queue.qsize()}",
+            flush=True,
+        )
         try:
             self._queue.put_nowait((pcm, energy, self.sample_rate))
         except asyncio.QueueFull:
