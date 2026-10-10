@@ -8,7 +8,7 @@ Changes vs v3:
   4. Fallback: agar stream se text nahi mila to graph state se final AI reply utha ke bolta hai.
   5. Har turn ke liye alag thread_id (checkpoint corrupt / duplicate history problem khatam).
   6. Bahut chhote transcripts (<3 chars) ignore (noise "hmm" se barge-in nahi hoga).
-  7. TTS_LEAD_SEC 0.18 -> 0.30.
+  7. Device credit / playback IDs replace estimated TTS pacing.
   8. DEBUG_EVENTS=1 env se graph events print kar sakte ho.
 """
 
@@ -53,7 +53,11 @@ MIN_TRANSCRIPT_CHARS = int(os.getenv("MIN_TRANSCRIPT_CHARS", "3"))
 # TTS PLAYBACK CONFIG
 # ============================================================
 TTS_SEND_CHUNK = 480
-TTS_LEAD_SEC = 0.45
+# Device-reported credit, rather than a guessed playback clock.
+TTS_BUFFER_TARGET_SEC = 0.60
+TTS_FEEDBACK_TIMEOUT_SEC = 8.0
+TTS_COMPLETION_TIMEOUT_SEC = 8.0
+TTS_ALLOW_BARGE_IN = os.getenv("TTS_ALLOW_BARGE_IN", "0") == "1"
 DEFAULT_VOICE_ID = "shubh"
 
 _SENT_SPLIT = re.compile(r"(?<=[.!?।])\s+|\n+")
@@ -234,85 +238,140 @@ async def resolve_org_name(ctx) -> str:
 # PACED PCM SENDER
 # ============================================================
 class PacedPCMSender:
+    """Single-stream PCM sender with device credit and correlated completion.
+
+    'played' means consumed by the ESP32 SCO callback, not acoustic confirmation.
+    Requires the hardware.ino supplied with this bundle.
+    """
+
     def __init__(self, websocket: WebSocket, device_id: str):
         self.ws = websocket
         self.device_id = device_id
-        self.t0 = None
+        self.serial = 0
+        self.active_id = None
+        self.busy = False
         self.sent = 0
-        self.rate = 0
+        self.played = 0
+        self.capacity = 0
+        self.rate = 8000
+        self.updated = asyncio.Event()
+        self.done = asyncio.Event()
+        self.completion = None
 
     def reset(self):
-        self.t0 = None
-        self.sent = 0
+        self.active_id = None
+        self.busy = False
+        self.sent = self.played = self.capacity = 0
+        self.completion = None
+        self.updated.set()
 
     def seconds_ahead(self) -> float:
-        if self.t0 is None or self.rate <= 0:
-            return 0.0
-        return max(
-            0.0,
-            (self.t0 + self.sent / (self.rate * 2)) - time.monotonic(),
-        )
+        return max(0, self.sent - self.played) / (self.rate * 2)
+
+    def on_device_event(self, payload: dict):
+        try:
+            stream_id = int(payload.get("playback_id", -1))
+            played = int(payload.get("played", 0))
+            received = int(payload.get("received", 0))
+        except (TypeError, ValueError):
+            return
+        if stream_id != self.active_id or not self.busy:
+            return
+        if not (0 <= played <= received <= self.sent):
+            return
+        self.played = max(self.played, played)
+        if payload.get("event") == "ai_audio_buffer":
+            try:
+                capacity = int(payload.get("capacity", 0))
+            except (TypeError, ValueError):
+                return
+            if capacity < 2 * TTS_SEND_CHUNK:
+                return
+            self.capacity = capacity
+        elif payload.get("event") == "ai_audio_played":
+            self.completion = payload
+            self.done.set()
+        self.updated.set()
+
+    async def _wait_for_update(self):
+        await asyncio.wait_for(self.updated.wait(), TTS_FEEDBACK_TIMEOUT_SEC)
 
     async def send(self, pcm: bytes, rate: int, text: str = "") -> bool:
-        pcm = pcm[: len(pcm) - (len(pcm) % 2)]
+        pcm = pcm[:len(pcm) & ~1]
         if not pcm:
             return False
-
-        bps = rate * 2
-        now = time.monotonic()
-        if self.t0 is None or self.rate != rate or (self.t0 + self.sent / bps) < now:
-            self.t0 = now
-            self.sent = 0
-            self.rate = rate
-
-        print(f"🔊 [TTS OUTGOING] Device={self.device_id} | {len(pcm)} B @ {rate} Hz | text='{text[:60]}'", flush=True)
-        send_started = time.monotonic()
-        chunks_sent = 0
-        max_ahead = 0.0
-
+        self.serial = (self.serial + 1) & 0xFFFFFFFF
+        if not self.serial:
+            self.serial = 1
+        stream_id = self.serial
+        self.active_id = stream_id
+        self.busy = True
+        self.sent = self.played = self.capacity = 0
+        self.rate = rate
+        self.completion = None
+        self.updated.clear()
+        self.done.clear()
+        started = time.monotonic()
         try:
-            await self.ws.send_text(json.dumps({"event": "ai_audio_start", "sample_rate": rate}))
+            await self.ws.send_text(json.dumps({
+                "event": "ai_audio_start", "playback_id": stream_id,
+                "sample_rate": rate, "total_bytes": len(pcm),
+            }))
+            while not self.capacity:
+                self.updated.clear()
+                if self.done.is_set():
+                    raise RuntimeError("Hardware rejected playback start")
+                await self._wait_for_update()
 
-
-            for i in range(0, len(pcm), TTS_SEND_CHUNK):
-                chunk = pcm[i:i + TTS_SEND_CHUNK]
-
+            # Reserve two packet slots; all in-flight bytes count against credit.
+            window = min(self.capacity - 2 * TTS_SEND_CHUNK,
+                         int(rate * 2 * TTS_BUFFER_TARGET_SEC)) & ~1
+            if window < TTS_SEND_CHUNK:
+                raise RuntimeError("Hardware buffer is too small")
+            for offset in range(0, len(pcm), TTS_SEND_CHUNK):
+                chunk = pcm[offset:offset + TTS_SEND_CHUNK]
+                while self.sent - self.played + len(chunk) > window:
+                    self.updated.clear()
+                    if self.done.is_set():
+                        raise RuntimeError("Hardware aborted PCM stream")
+                    await self._wait_for_update()
+                if self.done.is_set():
+                    raise RuntimeError("Hardware completed before all PCM was sent")
+                # Record before await: an acknowledgement can arrive during send.
+                self.sent += len(chunk)
                 await self.ws.send_bytes(chunk)
 
-                # Count each successfully sent chunk exactly once.
-                self.sent += len(chunk)
-                chunks_sent += 1
-
-                ahead = (
-                    self.t0 + self.sent / bps
-                ) - time.monotonic()
-
-                max_ahead = max(max_ahead, ahead)
-
-                if ahead > TTS_LEAD_SEC:
-                    await asyncio.sleep(ahead - TTS_LEAD_SEC)
-
-
-            await self.ws.send_text(json.dumps({"event": "ai_audio_end"}))
-            print(
-                f"✅ [TTS SEND DONE] bytes={len(pcm)} "
-                f"chunks={chunks_sent} rate={rate} "
-                f"audio_duration={len(pcm) / bps:.2f}s "
-                f"send_elapsed_ms={(time.monotonic() - send_started) * 1000:.0f} "
-                f"max_ahead={max_ahead:.2f}s",
-                flush=True,
-            )
+            await self.ws.send_text(json.dumps({
+                "event": "ai_audio_end", "playback_id": stream_id,
+            }))
+            await asyncio.wait_for(self.done.wait(), TTS_COMPLETION_TIMEOUT_SEC)
+            result = self.completion or {}
+            if (result.get("ok") is not True or
+                    int(result.get("played", -1)) != len(pcm) or
+                    int(result.get("received", -1)) != len(pcm) or
+                    int(result.get("dropped", -1)) != 0):
+                raise RuntimeError(f"Incomplete hardware playback: {result}")
+            logger.info("TTS PLAYED device=%s id=%s bytes=%s elapsed=%.2fs text=%r",
+                        self.device_id, stream_id, len(pcm),
+                        time.monotonic() - started, text[:60])
             return True
-
         except asyncio.CancelledError:
             raise
-        except (WebSocketDisconnect, RuntimeError) as disc_err:
-            logger.warning(f"⚠️ [TTS SEND] Device disconnected mid-playback: device={self.device_id}: {disc_err}")
-            print(f"⚠️ [TTS SEND] Device disconnected mid-playback for device={self.device_id}", flush=True)
+        except Exception:
+            logger.exception("TTS playback failed: device=%s id=%s sent=%s played=%s",
+                             self.device_id, stream_id, self.sent, self.played)
+            try:
+                await asyncio.wait_for(self.ws.send_text(json.dumps({
+                    "event": "ai_audio_cancel", "playback_id": stream_id,
+                    "reason": "playback feedback failure",
+                })), timeout=2.0)
+            except Exception:
+                pass
             return False
-        except Exception as e:
-            logger.error(f"❌ [TTS SEND ERROR] device={self.device_id}: {e}", exc_info=True)
-            return False
+        finally:
+            if self.active_id == stream_id:
+                self.busy = False
+                self.active_id = None
 
 
 @router.websocket("/ws/voice/{device_id}")
@@ -425,25 +484,30 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
                     pass
 
     async def play_worker():
+        nonlocal tts_generation
         while True:
             pcm, rate, text, generation = await pcm_queue.get()
             try:
                 if generation != tts_generation:
                     continue
                 tts_gate_on()
-                await pacer.send(pcm, rate, text)
-                # send() keeps audio queued ahead of real phone playback.
-                # Release only after that remaining audio has been heard.
-                tts_gate_off_later(pacer.seconds_ahead() + 0.08)
+                sent_ok = await pacer.send(pcm, rate, text)
+                if not sent_ok and generation == tts_generation:
+                    # Invalidate also the sentence currently being synthesized.
+                    tts_generation += 1
+                    clear_tts_queue()
+                if generation == tts_generation and not pcm_queue.empty():
+                    # Keep the gate closed across ready consecutive sentences.
+                    pass
+                else:
+                    tts_gate_off_now()
             except asyncio.CancelledError:
                 raise
-            except Exception as play_err:
-                logger.error(f"TTS play worker error: {play_err}", exc_info=True)
+            except Exception:
+                tts_gate_off_now()
+                logger.exception("TTS play worker failed: device=%s", device_id)
             finally:
-                try:
-                    pcm_queue.task_done()
-                except Exception:
-                    pass
+                pcm_queue.task_done()
 
     def start_tts_workers():
         tts_tasks.append(asyncio.create_task(synth_worker()))
@@ -841,6 +905,12 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
         if not transcribed_text:
             return
 
+        # This bundle defaults to half-duplex hardware playback.
+        # A late STT result from before TTS must not cancel the current audio.
+        if pacer.busy and not TTS_ALLOW_BARGE_IN:
+            logger.info("Ignoring late STT while AI playback is active: %s", device_id)
+            return
+
         if not call_is_active:
             print(
                 f"🗑️ [STT STALE] Ignoring transcript outside active call: "
@@ -880,16 +950,15 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
             raw_msg = await websocket.receive()
 
             if raw_msg.get("type") == "websocket.disconnect":
-                print("\n==================================================", flush=True)
-                print(f"🔴 [WEBSOCKET DISCONNECTED] Device ID: {device_id}", flush=True)
-                print("==================================================\n", flush=True)
-                logger.info(f"🔌 Hardware WebSocket Disconnected: {device_id}")
+                logger.warning("Device disconnected: id=%s code=%s reason=%s",
+                               device_id, raw_msg.get("code"), raw_msg.get("reason"))
                 break
 
             # ---------------- JSON control / events ----------------
             if raw_msg.get("text") is not None:
                 raw_text = raw_msg["text"]
-                print(f"\n📥 [WEBSOCKET INCOMING TEXT] Device={device_id} | Raw Payload: {raw_text}", flush=True)
+                if DEBUG_EVENTS:
+                    print(f"[DEVICE EVENT] {device_id}: {raw_text}", flush=True)
 
                 try:
                     payload = json.loads(raw_text)
@@ -899,7 +968,11 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
                     continue
 
                 event_type = payload.get("event")
-                print(f"🔍 [PARSED EVENT] Event: '{event_type}'", flush=True)
+                if event_type in ("ai_audio_buffer", "ai_audio_played"):
+                    pacer.on_device_event(payload)
+                    continue
+                if DEBUG_EVENTS:
+                    print(f"[DEVICE EVENT TYPE] {event_type}", flush=True)
 
                 try:
                     # ---------------- device_ready ----------------
@@ -1013,8 +1086,6 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
             elif raw_msg.get("bytes") is not None:
                 audio_bytes = raw_msg["bytes"]
 
-                
-                
 
                 try:
                     audio_monitor.feed(audio_bytes)

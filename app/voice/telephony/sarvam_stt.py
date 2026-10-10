@@ -371,7 +371,6 @@ class UtteranceSegmenter:
             self.preroll_ms -= old
         return None
 
-    
     def _feed_speaking(
         self,
         chunk: bytes,
