@@ -45,10 +45,13 @@ from app.modules.platform_configs.platform_config_route import (
     platform_config_router,
 )
 from app.voice.telephony.hardware_websocket import router as hardware_websocket_router
+
+from app.voice.telephony.hardware_websocket import router as hardware_webrtc_router
+
      
 
 from app.rag.vectorstore.qdrant_route import vector_store_router
-
+ 
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -95,3 +98,4 @@ api_router.include_router(live_feed_router)
 api_router.include_router(platform_configs_router)
 api_router.include_router(platform_config_router)
 api_router.include_router(hardware_websocket_router)
+api_router.include_router(hardware_webrtc_router)

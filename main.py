@@ -90,8 +90,6 @@ async def home():
 if __name__ == "__main__":
     import os
     import uvicorn
-    # reload=True restarts the server on every file save, which drops the ESP32
-    # WebSocket mid-call. Opt in with UVICORN_RELOAD=1 for pure API development.
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

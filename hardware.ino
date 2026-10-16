@@ -2,13 +2,10 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <math.h>
-#include <stdlib.h>
 #include "esp_wifi.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
-#include "esp_heap_caps.h"
-
 
 // ============================================================
 // COEXISTENCE CHECK
@@ -30,16 +27,6 @@
 #include "esp_bt_main.h"
 #include "esp_gap_bt_api.h"
 #include "esp_hf_client_api.h"
-
-
-
-// Diagnostic counters
-static uint32_t micBytes = 0;
-static uint32_t micCallbacks = 0;
-static uint32_t micLastReport = 0;
-static uint32_t micMaxGapMs = 0;
-static uint32_t micLastCallbackMs = 0;
-
 
 // ---- Tuning switches -----------------------------------------------------
 #define WIFI_PS_MODE_USED   WIFI_PS_NONE
@@ -72,6 +59,7 @@ char deviceId[32];
 // ============================================================
 // BACKEND / WEBSOCKET STATE
 // ============================================================
+
 bool backendInitialized = false;
 bool backendConnected   = false;
 
@@ -127,7 +115,6 @@ unsigned long lastAudioConnectAttempt = 0;
 const unsigned long HFP_RECONNECT_INTERVAL   = 5000;
 const unsigned long AUDIO_RECONNECT_INTERVAL = 3000;
 
-
 // ============================================================
 // RINGS
 // ============================================================
@@ -138,10 +125,7 @@ const unsigned long AUDIO_RECONNECT_INTERVAL = 3000;
 
 #define AUDIO_SEND_CHUNK  960
 #define AUDIO_SEND_MIN    480
-#define TX_PREBUFFER_MS   300
-// Stable half-duplex: discard microphone audio while AI PCM is queued.
-// Set to 0 only to test full-duplex/barge-in after verifying transport stability.
-#define TTS_PAUSE_MIC_UPLOAD 1
+#define TX_PREBUFFER_MS   120
 
 uint8_t*  audioRing     = nullptr;
 uint32_t  audioRingSize = AUDIO_RING_SIZE_HEAP;
@@ -177,26 +161,12 @@ portMUX_TYPE audioRingMux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool     txPlaying   = false;
 volatile uint32_t txLastRxMs  = 0;
 
-volatile bool txStreamEnded = false;
-volatile bool txPlaybackDonePending = false;
-volatile bool txStreamActive = false;
-volatile uint32_t txPlaybackId = 0;
-volatile uint32_t txExpectedBytes = 0;
-volatile uint32_t txStreamReceived = 0;
-volatile uint32_t txStreamPlayed = 0;
-volatile uint32_t txStreamDropped = 0;
-volatile uint32_t txStreamUnderruns = 0;
-volatile bool txStreamFailed = false;
-
 volatile uint32_t txBytesReceived = 0;
 volatile uint32_t txBytesSent     = 0;
 volatile uint32_t txBytesDropped  = 0;
 volatile uint32_t txUnderruns     = 0;
-volatile uint32_t txRingMaxUsed   = 0;
 
-// ============================================================
-// AI ACTIVITY TRACKING VARIABLES (NEW - serial monitor logs ke liye)
-// ============================================================
+
 // Ye counters AI conversation flow dekhne ke liye hain — serial monitor pe log karenge
 
 // AI_USER_SPEECH_BYTES: Total bytes of user's speech jo AI ko bheje gaye
@@ -241,9 +211,6 @@ unsigned long aiLastLogMs = 0;
 volatile bool dbgTtsStarted  = false;
 volatile bool dbgScoInferred = false;
 
-// ============================================================
-// FORWARD DECLARATIONS
-// ============================================================
 void generateDeviceId();
 void connectWiFi();
 void handleWiFi();
@@ -287,30 +254,10 @@ void allocRings()
     txRing = (uint8_t*)malloc(txRingSize);
   }
 
-  Serial.printf(
-      "[RING-ALLOC] audioRing=%s txRing=%s | audioSize=%lu txSize=%lu\n",
-      audioRing ? "OK" : "FAILED",
-      txRing ? "OK" : "FAILED",
-      (unsigned long)audioRingSize,
-      (unsigned long)txRingSize
-  );
-
-  printMemoryStats();
-}
-
-
-void printMemoryStats()
-{
-    Serial.printf(
-        "[MEM] PSRAM=%s | PSRAM total=%lu | PSRAM free=%lu"
-        " | Heap free=%lu | Heap min=%lu | Largest block=%lu\n",
-        psramFound() ? "YES" : "NO",
-        (unsigned long)ESP.getPsramSize(),
-        (unsigned long)ESP.getFreePsram(),
-        (unsigned long)ESP.getFreeHeap(),
-        (unsigned long)ESP.getMinFreeHeap(),
-        (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)
-    );
+  Serial.printf("PSRAM: %s | audioRing=%u txRing=%u | %s\n",
+                ps ? "YES" : "NO",
+                (unsigned)audioRingSize, (unsigned)txRingSize,
+                (audioRing && txRing) ? "alloc OK" : "ALLOC FAILED");
 }
 
 // ============================================================
@@ -377,41 +324,24 @@ static inline uint32_t txPrebufferBytes()
 
 void txRingWrite(const uint8_t* data, uint32_t len)
 {
-    if (!txRing || !data || !len) return;
-    const uint32_t originalLen = len;
-    len &= ~1u;
-    portENTER_CRITICAL(&txRingMux);
-    if (!txStreamActive || !callActive || !audioConnected) {
-        txBytesDropped += originalLen;
-        portEXIT_CRITICAL(&txRingMux);
-        return;
-    }
-    uint32_t freeBytes = (txRingSize - 1 - txRingAvailableUnsafe()) & ~1u;
-    // Flow-controlled backend must never send beyond this capacity.
-    // Fail explicitly on overflow; do not stall the network callback for 1s.
-    if (len != originalLen || len > freeBytes ||
-        txStreamReceived + len > txExpectedBytes) {
-        txBytesDropped += originalLen;
-        txStreamDropped += originalLen;
-        txStreamFailed = true;
-        txRingTail = txRingHead;
-        txPlaying = false;
-        txStreamActive = false;
-        txStreamEnded = false;
-        aiTtsActive = false;
-        txPlaybackDonePending = true;
-        portEXIT_CRITICAL(&txRingMux);
-        return;
-    }
-    uint32_t first = min(len, txRingSize - txRingHead);
-    memcpy(txRing + txRingHead, data, first);
-    if (len > first) memcpy(txRing, data + first, len - first);
-    txRingHead = (txRingHead + len) % txRingSize;
-    txStreamReceived += len;
-    uint32_t used = txRingAvailableUnsafe();
-    if (used > txRingMaxUsed) txRingMaxUsed = used;
-    txLastRxMs = millis();
+  if (!txRing) return;
+  len &= ~1u;
+  if (len == 0) return;
+
+  portENTER_CRITICAL(&txRingMux);
+  uint32_t freeBytes = txRingSize - 1 - txRingAvailableUnsafe();
+  if (len > freeBytes)
+  {
     portEXIT_CRITICAL(&txRingMux);
+    txBytesDropped += len;
+    return;
+  }
+
+  uint32_t first = min(len, txRingSize - txRingHead);
+  memcpy(txRing + txRingHead, data, first);
+  if (len > first) memcpy(txRing, data + first, len - first);
+  txRingHead = (txRingHead + len) % txRingSize;
+  portEXIT_CRITICAL(&txRingMux);
 }
 
 uint32_t txRingRead(uint8_t* out, uint32_t maxLen)
@@ -421,7 +351,7 @@ uint32_t txRingRead(uint8_t* out, uint32_t maxLen)
   uint32_t available = txRingAvailableUnsafe();
   uint32_t n = min(maxLen, available) & ~1u;
   if (n)
-  { 
+  {
     uint32_t first = min(n, txRingSize - txRingTail);
     memcpy(out, txRing + txRingTail, first);
     if (n > first) memcpy(out + first, txRing, n - first);
@@ -433,14 +363,10 @@ uint32_t txRingRead(uint8_t* out, uint32_t maxLen)
 
 void txRingClear()
 {
-    portENTER_CRITICAL(&txRingMux);
-    txRingTail = txRingHead;
-    txPlaying = false;
-    txStreamEnded = false;
-    txStreamActive = false;
-    txPlaybackDonePending = false;
-    aiTtsActive = false;
-    portEXIT_CRITICAL(&txRingMux);
+  portENTER_CRITICAL(&txRingMux);
+  txRingTail = txRingHead;
+  txPlaying  = false;
+  portEXIT_CRITICAL(&txRingMux);
 }
 
 // ============================================================
@@ -499,45 +425,6 @@ uint32_t ringRead(uint8_t* out, uint32_t maxLen)
   return n;
 }
 
-
-uint32_t ringPeek(uint8_t* out, uint32_t maxLen)
-{
-    if (!audioRing || out == nullptr || maxLen == 0) return 0;
-
-    portENTER_CRITICAL(&audioRingMux);
-
-    uint32_t available = ringAvailableUnsafe();
-    uint32_t n = min(maxLen, available) & ~1u;
-
-    if (n > 0) {
-        uint32_t first = min(n, audioRingSize - ringTail);
-        memcpy(out, audioRing + ringTail, first);
-
-        if (n > first) {
-            memcpy(out + first, audioRing, n - first);
-        }
-    }
-
-    portEXIT_CRITICAL(&audioRingMux);
-    return n;
-}
-
-void ringDiscard(uint32_t len)
-{
-    if (!audioRing || len == 0) return;
-
-    len &= ~1u;
-
-    portENTER_CRITICAL(&audioRingMux);
-
-    uint32_t available = ringAvailableUnsafe();
-    uint32_t n = min(len, available) & ~1u;
-    ringTail = (ringTail + n) % audioRingSize;
-
-    portEXIT_CRITICAL(&audioRingMux);
-}
-
-
 void ringClear()
 {
   portENTER_CRITICAL(&audioRingMux);
@@ -573,108 +460,52 @@ void hfpDataCallback(const uint8_t* buf, uint32_t len)
     dbgScoInferred     = true;   // printed later from loop()
   }
 
-#if TTS_PAUSE_MIC_UPLOAD
-  if (!txStreamActive) ringWrite(buf, len);
-#else
   ringWrite(buf, len);
-#endif
 
   // Pull one outgoing SCO packet per incoming packet (SCO clock).
   if (audioConnected) esp_hf_client_outgoing_data_ready();
 }
 
-
-
 uint32_t hfpOutgoingCallback(uint8_t* buf, uint32_t len)
 {
-    if (!buf || len == 0) return 0;
+  if (buf == nullptr || len == 0) return 0;
 
-    // Output packet defaults to silence.
-    memset(buf, 0, len);
+  uint32_t avail = txRingAvailable();
 
-    if (!callActive || !audioConnected || !txRing) {
-        return len;
+  if (!txPlaying)
+  {
+    if (avail < txPrebufferBytes()) return 0;   // wait for prebuffer
+
+    txPlaying      = true;
+    aiTtsActive    = true;
+    aiTtsStartTime = millis();
+    aiConversationTurn++;
+    dbgTtsStarted  = true;                      // printed later from loop()
+  }
+
+  if (avail < len)
+  {
+    // Ring drained. If backend has sent nothing for 300 ms, utterance is over.
+    if ((millis() - txLastRxMs) > 300)
+    {
+      txRingClear();                            // drops tail, sets txPlaying=false
+      aiTtsActive   = false;
+      aiTtsStopTime = millis();
     }
-
-    const uint32_t now = millis();
-    const uint32_t prebuffer = txPrebufferBytes();
-
-    portENTER_CRITICAL(&txRingMux);
-
-    uint32_t available = txRingAvailableUnsafe();
-
-    if (!txPlaying) {
-        // Normal stream: wait for the configured prebuffer.
-        // Finished short stream: play whatever remains.
-        bool ready =
-            available >= prebuffer ||
-            (txStreamEnded && available > 0);
-
-        if (!ready) {
-            portEXIT_CRITICAL(&txRingMux);
-            return len;
-        }
-
-        txPlaying = true;
-        aiTtsActive = true;
-        aiTtsStartTime = now;
-        dbgTtsStarted = true;
+    else
+    {
+      txUnderruns++;                            // real underrun, more data expected
     }
+    return 0;
+  }
 
-    // Consume remaining audio even when it is smaller than
-    // the requested SCO packet. Remaining output stays silent.
-    uint32_t n = min(available, len) & ~1u;
+  uint32_t n = txRingRead(buf, len);
+  if (n != len) { txUnderruns++; return 0; }
 
-    if (n > 0) {
-        uint32_t first = min(n, txRingSize - txRingTail);
-
-        memcpy(buf, txRing + txRingTail, first);
-
-        if (n > first) {
-            memcpy(buf + first, txRing, n - first);
-        }
-
-        txRingTail = (txRingTail + n) % txRingSize;
-
-        txBytesSent += n;
-        aiTtsPlayedBytes += n;
-        txStreamPlayed += n;
-    }
-
-    // Count shortages during an unfinished stream only.
-    // if (n < len && !txStreamEnded) {
-    //     txUnderruns++;
-    //     txStreamUnderruns++;
-    // }
-
-    if (n < len && !txStreamEnded) {
-        txUnderruns++;
-        txStreamUnderruns++;
-
-        // Re-enter prebuffer mode before playing more PCM.
-        txPlaying = false;
-    }
-
-    if (txStreamEnded && txRingAvailableUnsafe() == 0) {
-        txStreamActive = false;
-        txPlaying = false;
-        txStreamEnded = false;
-
-        aiTtsActive = false;
-        aiTtsStopTime = now;
-        aiConversationTurn++;
-
-        // Send the completion event later from loop().
-        // Never perform WebSocket operations here.
-        txPlaybackDonePending = true;
-    }
-
-    portEXIT_CRITICAL(&txRingMux);
-
-    return len;
+  txBytesSent      += n;
+  aiTtsPlayedBytes += n;
+  return n;
 }
-
-
 
 // ============================================================
 // DEVICE ID
@@ -709,37 +540,6 @@ void saveRemoteDevice(const esp_bd_addr_t address)
 void applyWifiPowerSave()
 {
   esp_wifi_set_ps(WIFI_PS_MODE_USED);
-}
-
-
-void recordMicDiagnostics(uint32_t len) {
-    uint32_t now = millis();
-
-    micBytes += len;
-    micCallbacks++;
-
-    if (micLastCallbackMs != 0) {
-        uint32_t gap = now - micLastCallbackMs;
-        if (gap > micMaxGapMs) {
-            micMaxGapMs = gap;
-        }
-    }
-
-    micLastCallbackMs = now;
-
-    if (now - micLastReport >= 1000) {
-        Serial.printf(
-            "[MIC_DIAG] bytes/s=%lu callbacks/s=%lu maxGap=%lu ms\n",
-            (unsigned long)micBytes,
-            (unsigned long)micCallbacks,
-            (unsigned long)micMaxGapMs
-        );
-
-        micBytes = 0;
-        micCallbacks = 0;
-        micMaxGapMs = 0;
-        micLastReport = now;
-    }
 }
 
 // ============================================================
@@ -780,18 +580,6 @@ void connectWiFi()
   }
 }
 
-
-void printMemoryDiagnostics() {
-    Serial.printf(
-        "[MEM] free=%u minFree=%u largestBlock=%u\n",
-        (unsigned)ESP.getFreeHeap(),
-        (unsigned)ESP.getMinFreeHeap(),
-        (unsigned)heap_caps_get_largest_free_block(
-            MALLOC_CAP_8BIT
-        )
-    );
-}
-
 // ============================================================
 // WIFI RECONNECT
 // ============================================================
@@ -824,123 +612,98 @@ void handleWiFi()
 
     Serial.println("Trying WiFi reconnect...");
 
-
-  Serial.println("WiFi is down; requesting reconnect");
-  WiFi.reconnect();
-
+    WiFi.disconnect();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 }
 
 // ============================================================
 // BACKEND CONNECT
 // ============================================================
-
 void connectBackend()
 {
-  if (backendInitialized) return;
-  if (WiFi.status() != WL_CONNECTED) return;
+    // WiFi nahi hai to WebSocket start mat karo
+    if (WiFi.status() != WL_CONNECTED)
+        return;
 
-  String websocketPath = String(BACKEND_BASE_PATH) + deviceId;
+    // IMPORTANT:
+    // webSocket.begin() sirf EK BAAR call hoga.
+    // Uske baad WebSocketsClient khud reconnect karega.
+    if (backendInitialized)
+        return;
 
-  // Configure callbacks before starting the socket.
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(2000);
-  webSocket.enableHeartbeat(30000, 15000, 3);
+    if (wsBeginInProgress)
+        return;
 
-  // Set this before begin() to avoid duplicate initialization.
-  backendInitialized = true;
+    unsigned long now = millis();
 
-  Serial.println("Initializing WebSocket once...");
-  webSocket.begin(
-      BACKEND_HOST,
-      BACKEND_PORT,
-      websocketPath.c_str(),
-      ""
-  );
+    // Extra protection against duplicate initialization
+    if (lastWsConnectAttempt != 0 &&
+        (now - lastWsConnectAttempt) < WS_RECONNECT_GUARD)
+    {
+        return;
+    }
+
+    wsBeginInProgress = true;
+    lastWsConnectAttempt = now;
+
+    String websocketPath =
+        String(BACKEND_BASE_PATH) +
+        String(deviceId);
+
+    Serial.println();
+    Serial.println("=================================");
+    Serial.println("STARTING BACKEND WEBSOCKET");
+    Serial.println("=================================");
+
+    Serial.print("Host: ");
+    Serial.println(BACKEND_HOST);
+
+    Serial.print("Port: ");
+    Serial.println(BACKEND_PORT);
+
+    Serial.print("Device ID: ");
+    Serial.println(deviceId);
+
+    Serial.print("Path: ");
+    Serial.println(websocketPath);
+
+    Serial.printf(
+        "Free heap before WS: %u\n",
+        ESP.getFreeHeap()
+    );
+
+    // Register callback BEFORE begin
+    webSocket.onEvent(webSocketEvent);
+
+    // Start WebSocket ONLY ONCE
+    webSocket.begin(
+        BACKEND_HOST,
+        BACKEND_PORT,
+        websocketPath.c_str(),
+        ""
+    );
+
+    // Library handles reconnect automatically
+    webSocket.setReconnectInterval(2000);
+
+    // Keep connection alive
+    webSocket.enableHeartbeat(
+        30000,   // ping interval
+        15000,   // pong timeout
+        3        // reconnect after missed pongs
+    );
+
+    backendInitialized = true;
+    wsBeginInProgress = false;
+
+    Serial.println("BACKEND WEBSOCKET INITIALIZED");
+    Serial.println("Waiting for WS CONNECTED event...");
 }
-
 
 // ============================================================
 // WEBSOCKET EVENT
 // ============================================================
-
-void printBackendLog(const char* payload, size_t length)
-{
-  if (payload == nullptr || length == 0) return;
-
-  Serial.println();
-  Serial.println("┌────────────────────────────────────────────┐");
-  Serial.println("│  📩 RECEIVED DATA FROM THE BACKEND        │");
-  Serial.println("├────────────────────────────────────────────┤");
-  Serial.printf ("│ Time   : %lu ms\n", millis());
-  Serial.printf ("│ Length : %u bytes\n", (unsigned)length);
-  Serial.println("├────────────────────────────────────────────┤");
-  Serial.print  ("│ Payload: ");
-  Serial.println(payload);
-  Serial.println("└────────────────────────────────────────────┘");
-  Serial.println();
-}
-
-
-static uint32_t lastBufferReportMs = 0;
-
-uint32_t jsonUInt(const char* json, const char* key)
-{
-    char needle[48];
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    const char* p = strstr(json, needle);
-    if (!p) return 0;
-    p = strchr(p + strlen(needle), ':');
-    if (!p) return 0;
-    return (uint32_t)strtoul(p + 1, nullptr, 10);
-}
-
-void sendPlaybackFeedback()
-{
-    if (!backendConnected) return;
-    uint32_t now = millis();
-    portENTER_CRITICAL(&txRingMux);
-    bool active = txStreamActive;
-    bool done = txPlaybackDonePending;
-    uint32_t id = txPlaybackId;
-    uint32_t played = txStreamPlayed;
-    uint32_t received = txStreamReceived;
-    uint32_t dropped = txStreamDropped;
-    uint32_t underruns = txStreamUnderruns;
-    uint32_t capacity = (txRingSize - 1) & ~1u;
-    bool failed = txStreamFailed;
-    portEXIT_CRITICAL(&txRingMux);
-    if (!done && (!active || (now - lastBufferReportMs < 100))) return;
-    char event[256];
-    if (done) {
-        snprintf(event, sizeof(event),
-            "{\"event\":\"ai_audio_played\",\"playback_id\":%lu,"
-            "\"played\":%lu,\"received\":%lu,\"dropped\":%lu,\"ok\":%s}",
-            (unsigned long)id, (unsigned long)played,
-            (unsigned long)received, (unsigned long)dropped,
-            failed ? "false" : "true");
-    } else {
-        snprintf(event, sizeof(event),
-            "{\"event\":\"ai_audio_buffer\",\"playback_id\":%lu,"
-            "\"played\":%lu,\"received\":%lu,\"capacity\":%lu}",
-            (unsigned long)id, (unsigned long)played,
-            (unsigned long)received, (unsigned long)capacity);
-    }
-    if (webSocket.sendTXT(event)) {
-        lastBufferReportMs = now;
-        if (done) {
-            portENTER_CRITICAL(&txRingMux);
-            if (txPlaybackId == id) txPlaybackDonePending = false;
-            portEXIT_CRITICAL(&txRingMux);
-            // No old caller audio must be replayed after half-duplex TTS.
-            ringClear();
-            Serial.printf("[TTS DONE] id=%lu played=%lu received=%lu dropped=%lu underruns=%lu ok=%d\n",
-                (unsigned long)id, (unsigned long)played,
-                (unsigned long)received, (unsigned long)dropped, (unsigned long)underruns, !failed);
-        }
-    }
-}
-
 void webSocketEvent(WStype_t type, uint8_t* payload, size_t length)
 {
   switch (type)
@@ -1009,32 +772,12 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length)
           );
       }
 
-
-
-    if (callActive)
-    {
-        pendingCallStarted = true;
-        callResumed = true;
-
-        Serial.println(
-            "[WS] Reconnected during active call; resume requested"
-        );
-    }
-
-    if (audioConnected)
-    {
-        pendingAudioFormat = true;
-    }
-
-
       break;
   }
 
   case WStype_DISCONNECTED:
   {
       backendConnected = false;
-      txRingClear();
-      ringClear();
 
       wsBeginInProgress = false;
       wsReconnectPending = true;
@@ -1118,96 +861,115 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length)
 
   case WStype_ERROR:
   {
-    Serial.println();
-    Serial.println("╔════════════════════════════════════════════╗");
-    Serial.println("║   ❌ WEBSOCKET ERROR FROM BACKEND         ║");
-    Serial.println("╚════════════════════════════════════════════╝");
-    Serial.printf("│ Time    : %lu ms\n", millis());
-    Serial.printf("│ Error   : %s\n", payload ? (const char*)payload : "(no payload)");
-    Serial.printf("│ WiFi    : %d dBm\n", WiFi.RSSI());
-    Serial.printf("│ FreeHeap: %u\n", ESP.getFreeHeap());
-    Serial.println("╚════════════════════════════════════════════╝");
-    break;
+      Serial.println();
+      Serial.println("========== WEBSOCKET ERROR ==========");
+
+      if (payload) {
+          Serial.printf("Error payload: %s\n", payload);
+      }
+
+      Serial.printf("WiFi RSSI: %d dBm\n", WiFi.RSSI());
+      Serial.printf("Free heap: %u\n", ESP.getFreeHeap());
+      Serial.printf("Min heap: %u\n", ESP.getMinFreeHeap());
+
+      break;
   }
 
+    case WStype_TEXT:
+    {
+      if (payload != nullptr && length > 0)
+      {
+        const char* p = (const char*)payload;
 
-  case WStype_TEXT:
-  {
-    if (!payload || !length) break;
-    char message[512];
-    size_t count = min(length, sizeof(message) - 1);
-    memcpy(message, payload, count);
-    message[count] = '\0';
-    if (strstr(message, "ai_audio_start")) {
-        uint32_t id = jsonUInt(message, "playback_id");
-        uint32_t expected = jsonUInt(message, "total_bytes");
-        uint32_t rate = jsonUInt(message, "sample_rate");
-        txRingClear();
-        ringClear();
-        portENTER_CRITICAL(&txRingMux);
-        txPlaybackId = id;
-        txExpectedBytes = expected;
-        txStreamReceived = txStreamPlayed = txStreamDropped = 0;
-        txStreamUnderruns = 0;
-        txStreamFailed = !id || !expected || (expected & 1u) ||
-                         rate != (uint32_t)audioSampleRate ||
-                         !callActive || !audioConnected;
-        txStreamActive = !txStreamFailed;
-        txPlaybackDonePending = txStreamFailed;
-        portEXIT_CRITICAL(&txRingMux);
-        // Ready/credit is sent from loop(), not from Bluetooth callbacks.
-        lastBufferReportMs = 0;
-        break;
-    }
-    if (strstr(message, "ai_audio_end")) {
-        uint32_t id = jsonUInt(message, "playback_id");
-        portENTER_CRITICAL(&txRingMux);
-        if (id == txPlaybackId && txStreamActive) {
-            txStreamEnded = true;
-            if (txStreamReceived != txExpectedBytes) {
-                txStreamFailed = true;
-                txRingTail = txRingHead;
-            }
-            if (txRingAvailableUnsafe() == 0) {
-                txPlaying = false;
-                txStreamActive = false;
-                txStreamEnded = false;
-                aiTtsActive = false;
-                txPlaybackDonePending = true;
-            }
+        // Backend se aaya text message log karo
+        Serial.println();
+        Serial.printf("📩 [AI-TEXT] Backend says: %s\n", p);
+
+        // Barge-in: backend ne TTS cancel maanga hai
+        if (strstr(p, "ai_audio_cancel"))
+        {
+          txRingClear();
+          aiTtsActive = false;
+          Serial.println("🛑 [TTS CANCEL] Backend requested audio buffer clear");
+          logAI("🛑", "AI-INTERRUPT", "Backend cancelled TTS (user barge-in or new command)");
+          break;
         }
-        portEXIT_CRITICAL(&txRingMux);
-        break;
-    }
-    if (strstr(message, "ai_audio_cancel")) {
-        uint32_t id = jsonUInt(message, "playback_id");
-        // Generic call reset uses no ID; stale stream-specific cancel is ignored.
-        if (!id || id == txPlaybackId) {
-            txRingClear();
-            ringClear();
+
+        if (strstr(p, "\"error\""))
+        {
+          logAI("❌", "AI-ERROR", p);
         }
-        break;
+        else if (strstr(p, "call_ready"))
+        {
+          logAI("✅", "AI-CALL", "Backend call pipeline ready");
+        }
+        else if (strstr(p, "server_ready"))
+        {
+          logAI("✅", "AI-SERVER", "Backend server ready");
+        }
+        else if (strstr(p, "transcript") || strstr(p, "user_said"))
+        {
+          // Agar backend transcript bheje to usko clearly dikhao
+          logAI("📝", "AI-HEARD", p);
+        }
+        else if (strstr(p, "ai_text") || strstr(p, "response_text"))
+        {
+          logAI("💬", "AI-SAID", p);
+        }
+      }
+      break;
     }
-    if (!callActive) printBackendLog(message, count);
-    break;
-  }
-  case WStype_BIN:
-  {
-    if (payload && length) {
+
+    case WStype_BIN:
+    {
+      if (payload != nullptr && length > 0)
+      {
         txRingWrite(payload, length);
         txBytesReceived += length;
+        txLastRxMs = millis();
+
+        // AI response tracking
         aiResponseBytes += length;
         aiResponseChunks++;
         aiLastResponseMs = millis();
+
+        // Pehla chunk aaya to AI response start log karo
+        if (aiResponseChunks == 1)
+        {
+          Serial.println();
+          logAI("📥", "AI-RESPONSE", "Backend ne AI response bhejna shuru kiya (TTS)");
+        }
+
+        // IMPORTANT: wake the HFP outgoing callback now. Without this,
+        // playback may wait for another incoming SCO callback.
+        // if (audioConnected && slcConnected)
+        // {
+        //   esp_hf_client_outgoing_data_ready();
+        // }
+      }  
+
+      static uint32_t binCount = 0;
+      binCount++;
+
+      // Har 50 chunks pe AI response progress log karo
+      if (binCount % 50 == 0)
+      {
+        Serial.printf("📦 [AI-TTS] chunk #%lu | ring=%u | played=%lu | drop=%lu | underrun=%lu\n",
+                      (unsigned long)binCount,
+                      (unsigned)txRingAvailable(),
+                      (unsigned long)aiTtsPlayedBytes,
+                      (unsigned long)txBytesDropped,
+                      (unsigned long)txUnderruns);
+      }
+      break;
     }
-    break;
-  }
+
     case WStype_PING:
-      if (!callActive) logAI("🏓", "AI-PING", "Ping received");
+      logAI("🏓", "AI-PING", "Ping sent to backend");
       break;
 
     case WStype_PONG:
-      if (!callActive) logAI("🏓", "AI-PONG", "Pong received");
+      logAI("🏓", "AI-PONG", "Pong received from backend (connection alive)");
       break;
 
     default:
@@ -1395,27 +1157,27 @@ void hfpCallback(esp_hf_client_cb_event_t event, esp_hf_client_cb_param_t* param
         aiResponseBytes = 0;
         aiResponseChunks = 0;
       }
-      // else if (state == ESP_HF_CLIENT_AUDIO_STATE_CONNECTED_MSBC)
-      // {
-      //   audioConnecting = false;
-      //   audioConnected  = true;
-      //   audioSampleRate = 16000;
-      //   audioCodecName  = "mSBC";
-      //   lastCbMs = 0; maxCbGapMs = 0; bigGapCount = 0;
-      //   ringClear();
-      //   txRingClear();
-      //   pendingAudioFormat = true;
-      //   Serial.println("SCO AUDIO CONNECTED | Codec: mSBC | 16000 Hz");
-      //   Serial.println("⚠️ mSBC/WBS negotiated. This firmware sends raw callback bytes as PCM, so mSBC must be DISABLED in build config.");
-      //   Serial.println("   Set CONFIG_BT_HFP_WBS_ENABLE=n, rebuild, erase flash/NVS if needed, then pair again.");
-      //   printAIActivityBanner("VOICE CHANNEL OPEN (mSBC - NOT SUPPORTED IN THIS BUILD)");
-      //   logAI("🎤", "AI-LISTEN", "SCO audio connected - AI can now hear you");
-      //   aiListening = true;
-      //   aiUserSpeechBytes = 0;
-      //   aiUserSpeechChunks = 0;
-      //   aiResponseBytes = 0;
-      //   aiResponseChunks = 0;
-      // }
+      else if (state == ESP_HF_CLIENT_AUDIO_STATE_CONNECTED_MSBC)
+      {
+        audioConnecting = false;
+        audioConnected  = true;
+        audioSampleRate = 16000;
+        audioCodecName  = "mSBC";
+        lastCbMs = 0; maxCbGapMs = 0; bigGapCount = 0;
+        ringClear();
+        txRingClear();
+        pendingAudioFormat = true;
+        Serial.println("SCO AUDIO CONNECTED | Codec: mSBC | 16000 Hz");
+        Serial.println("⚠️ mSBC/WBS negotiated. This firmware sends raw callback bytes as PCM, so mSBC must be DISABLED in build config.");
+        Serial.println("   Set CONFIG_BT_HFP_WBS_ENABLE=n, rebuild, erase flash/NVS if needed, then pair again.");
+        printAIActivityBanner("VOICE CHANNEL OPEN (mSBC - NOT SUPPORTED IN THIS BUILD)");
+        logAI("🎤", "AI-LISTEN", "SCO audio connected - AI can now hear you");
+        aiListening = true;
+        aiUserSpeechBytes = 0;
+        aiUserSpeechChunks = 0;
+        aiResponseBytes = 0;
+        aiResponseChunks = 0;
+      }
       else if (state == ESP_HF_CLIENT_AUDIO_STATE_DISCONNECTED)
       {
         audioConnecting = false;
@@ -1648,167 +1410,61 @@ void connectSCO()
 // ============================================================
 // PENDING EVENTS -> BACKEND
 // ============================================================
-
 void handlePendingEvents()
 {
-    if (!backendConnected) return;
+  if (!backendConnected) return;
 
-    static char evtBuf[256];
+  static char evtBuf[256];
 
-    // ==========================================
-    // 1. CALL STARTED / CALL RESUMED
-    // ==========================================
-    if (pendingCallStarted)
+  if (pendingCallStarted)
+  {
+    pendingCallStarted = false;
+
+    int n = snprintf(evtBuf, sizeof(evtBuf),
+                     "{\"event\":\"call_started\",\"device_id\":\"%s\"", deviceId);
+
+    if (strlen(callerPhoneNumber) > 0)
     {
-        bool wasResumed = callResumed;
-
-        int n = snprintf(
-            evtBuf,
-            sizeof(evtBuf),
-            "{\"event\":\"call_started\",\"device_id\":\"%s\"",
-            deviceId
-        );
-
-        if (n < 0 || n >= (int)sizeof(evtBuf))
-        {
-            Serial.println("[WS] ERROR building call_started");
-            return;
-        }
-
-        if (strlen(callerPhoneNumber) > 0)
-        {
-            int written = snprintf(
-                evtBuf + n,
-                sizeof(evtBuf) - n,
-                ",\"caller_phone\":\"%s\"",
-                callerPhoneNumber
-            );
-
-            if (written < 0 || written >= (int)(sizeof(evtBuf) - n))
-            {
-                Serial.println("[WS] ERROR adding caller_phone");
-                return;
-            }
-
-            n += written;
-        }
-
-        if (wasResumed)
-        {
-            int written = snprintf(
-                evtBuf + n,
-                sizeof(evtBuf) - n,
-                ",\"resumed\":true"
-            );
-
-            if (written < 0 || written >= (int)(sizeof(evtBuf) - n))
-            {
-                Serial.println("[WS] ERROR adding resumed flag");
-                return;
-            }
-
-            n += written;
-        }
-
-        int written = snprintf(
-            evtBuf + n,
-            sizeof(evtBuf) - n,
-            "}"
-        );
-
-        if (written < 0 || written >= (int)(sizeof(evtBuf) - n))
-        {
-            Serial.println("[WS] ERROR finishing call_started");
-            return;
-        }
-
-        // Clear flags ONLY after sendTXT reports success.
-        if (webSocket.sendTXT(evtBuf))
-        {
-            pendingCallStarted = false;
-
-            // Don't erase a newer resume request that arrived meanwhile.
-            if (wasResumed && callResumed)
-            {
-                callResumed = false;
-            }
-
-            Serial.print("[WS] call_started SENT: ");
-            Serial.println(evtBuf);
-        }
-        else
-        {
-            Serial.println(
-                "[WS] call_started send failed; event remains pending"
-            );
-        }
+      n += snprintf(evtBuf + n, sizeof(evtBuf) - n,
+                    ",\"caller_phone\":\"%s\"", callerPhoneNumber);
     }
 
-    // ==========================================
-    // 2. AUDIO FORMAT
-    // ==========================================
-    if (pendingAudioFormat && backendConnected)
+    if (callResumed)
     {
-        int n = snprintf(
-            evtBuf,
-            sizeof(evtBuf),
-            "{\"event\":\"audio_format\",\"codec\":\"%s\","
-            "\"sample_rate\":%d,\"bits\":16,\"channels\":1}",
-            audioCodecName,
-            (int)audioSampleRate
-        );
-
-        if (n < 0 || n >= (int)sizeof(evtBuf))
-        {
-            Serial.println("[WS] ERROR building audio_format");
-            return;
-        }
-
-        // Clear the flag ONLY after sendTXT reports success.
-        if (webSocket.sendTXT(evtBuf))
-        {
-            pendingAudioFormat = false;
-
-            Serial.print("[WS] audio_format SENT: ");
-            Serial.println(evtBuf);
-        }
-        else
-        {
-            Serial.println(
-                "[WS] audio_format send failed; event remains pending"
-            );
-        }
+      n += snprintf(evtBuf + n, sizeof(evtBuf) - n, ",\"resumed\":true");
+      callResumed = false;
     }
 
-    // ==========================================
-    // 3. CALL ENDED
-    // ==========================================
-    if (pendingCallEnded && backendConnected)
-    {
-        if (webSocket.sendTXT("{\"event\":\"call_ended\"}"))
-        {
-            pendingCallEnded = false;
+    snprintf(evtBuf + n, sizeof(evtBuf) - n, "}");
 
-            Serial.println("[WS] call_ended SENT");
+    webSocket.sendTXT(evtBuf);
+    Serial.print("call_started SENT: ");
+    Serial.println(evtBuf);
+    logAI("📤", "AI-CALL", "Sent call_started to backend");
+  }
 
-            ringClear();
-            txRingClear();
+  if (pendingAudioFormat)
+  {
+    pendingAudioFormat = false;
+    snprintf(evtBuf, sizeof(evtBuf),
+             "{\"event\":\"audio_format\",\"codec\":\"%s\",\"sample_rate\":%d,\"bits\":16,\"channels\":1}",
+             audioCodecName, audioSampleRate);
+    webSocket.sendTXT(evtBuf);
+    Serial.print("audio_format SENT: ");
+    Serial.println(evtBuf);
+    logAI("📤", "AI-FORMAT", "Sent audio_format to backend");
+  }
 
-            logAI(
-                "📤",
-                "AI-CALL",
-                "Sent call_ended to backend"
-            );
-        }
-        else
-        {
-            Serial.println(
-                "[WS] call_ended send failed; event remains pending"
-            );
-        }
-    }
+  if (pendingCallEnded)
+  {
+    pendingCallEnded = false;
+    webSocket.sendTXT("{\"event\":\"call_ended\"}");
+    Serial.println("call_ended SENT");
+    ringClear();
+    txRingClear();
+    logAI("📤", "AI-CALL", "Sent call_ended to backend");
+  }
 }
-
 // ============================================================
 // PENDING EVENTS -> BACKEND
 // ============================================================
@@ -1840,32 +1496,48 @@ void printDeferredDebug()
 // ============================================================
 // AUDIO STREAMING -> BACKEND
 // ============================================================
-
 void handleAudioStreaming()
 {
-    if (!backendConnected || !audioConnected || !callActive) return;
-#if TTS_PAUSE_MIC_UPLOAD
-    if (txStreamActive || txPlaybackDonePending) {
-        ringClear();
-        return;
-    }
-#endif
-    static uint8_t chunk[AUDIO_SEND_CHUNK];
-    uint32_t avail = ringAvailable() & ~1u;
-    if (avail < AUDIO_SEND_MIN) return;
-    uint32_t n = ringPeek(chunk, min(avail, (uint32_t)AUDIO_SEND_CHUNK)) & ~1u;
-    if (!n) return;
-    // One write per loop; all WebSocket access stays on this same task.
-    if (webSocket.sendBIN(chunk, n)) {
-        ringDiscard(n);
-        audioSentBytes += n;
-        audioSentFrames++;
-        aiUserSpeechBytes += n;
-        aiUserSpeechChunks++;
-        aiLastUserSpeechMs = millis();
-    }
-}
+  if (!backendConnected || !audioConnected) return;
 
+  static uint8_t chunk[AUDIO_SEND_CHUNK];
+
+  for (int i = 0; i < 8; i++)
+  {
+    uint32_t avail = ringAvailable() & ~1u;
+    if (avail < AUDIO_SEND_MIN) break;
+
+    uint32_t want = avail < AUDIO_SEND_CHUNK ? avail : AUDIO_SEND_CHUNK;
+    uint32_t n = ringRead(chunk, want);
+    n &= ~1u;
+    if (n == 0) break;
+
+    if (webSocket.sendBIN(chunk, n))
+    {
+      audioSentBytes += n;
+      audioSentFrames++;
+
+      // ===== AI LOG: User ki awaaz AI ko bhej rahe hain =====
+      aiUserSpeechBytes += n;
+      aiUserSpeechChunks++;
+      aiLastUserSpeechMs = millis();
+
+      // Pehla chunk aaye to log karo (spam control)
+      if (aiUserSpeechChunks == 1)
+      {
+        Serial.println();
+        logAI("🎤", "AI-HEAR", "User is speaking -> streaming to AI...");
+      }
+    }
+    else
+    {
+      Serial.println("[WS AUDIO] sendBIN failed");
+      logAI("❌", "AI-HEAR", "Failed to send user audio to backend");
+      break;
+    }
+    delay(0);
+  }
+}
 
 // ============================================================
 // BLUETOOTH SETUP
@@ -2024,17 +1696,10 @@ void printSystemStatus()
   maxCbGapMs = 0;
   maxLoopMs  = 0;
 
-  Serial.printf(
-      "[TTS] rx=%luB played=%luB drop=%luB"
-      " underruns=%lu buf=%lu maxBuf=%lu capacity=%lu\n",
-      (unsigned long)txBytesReceived,
-      (unsigned long)txBytesSent,
-      (unsigned long)txBytesDropped,
-      (unsigned long)txUnderruns,
-      (unsigned long)txRingAvailable(),
-      (unsigned long)txRingMaxUsed,
-      (unsigned long)(txRingSize - 1)
-  );
+  Serial.printf("[TTS] rx=%uB played=%uB drop=%uB underruns=%u buf=%u\n",
+                (unsigned)txBytesReceived, (unsigned)txBytesSent,
+                (unsigned)txBytesDropped, (unsigned)txUnderruns,
+                (unsigned)txRingAvailable());
 
   // ===== AI ACTIVITY STATS (NEW) =====
   logAIStat();
@@ -2119,118 +1784,52 @@ void setup()
 // ============================================================
 // LOOP
 // ============================================================
-
-
-
-String escapeJson(const String& input) {
-    String output;
-    output.reserve(input.length() + 16);
-    for (size_t i = 0; i < input.length(); i++) {
-        char c = input[i];
-        switch (c) {
-            case '"': output += "\\\""; break;
-            case '\\': output += "\\\\"; break;
-            case '\n': output += "\\n"; break;
-            case '\r': output += "\\r"; break;
-            case '\t': output += "\\t"; break;
-            default: if ((uint8_t)c >= 0x20) output += c; break;
-        }
-    }
-    return output;
-}
-
-void sendUserTextToBackend(const String& recognizedText) {
-  if (!backendConnected || recognizedText.length() == 0) {
-    return;
-  }
-
-  String payload =
-      "{\"event\":\"user_text\",\"text\":\"" +
-      escapeJson(recognizedText) + "\"}";
-
-  webSocket.sendTXT(payload);
-
-  Serial.print("TEXT SENT: ");
-  Serial.println(recognizedText);
-}
-
-void sendPlaybackDone()
-{
-    sendPlaybackFeedback();
-}
-
 void loop()
 {
-    const uint32_t loopStart = millis();
+    unsigned long loopStart = millis();
 
-    uint32_t t = millis();
-    if (backendInitialized) {
+    // WebSocket library must be serviced continuously
+    if (backendInitialized)
+    {
         webSocket.loop();
     }
-    const uint32_t wsMs = millis() - t;
 
-    t = millis();
+    // WiFi management
     handleWiFi();
-    connectBackend();
-    const uint32_t wifiMs = millis() - t;
 
-    t = millis();
+    // Start WebSocket only if it has NEVER been initialized
+    if (WiFi.status() == WL_CONNECTED &&
+        !backendInitialized)
+    {
+        connectBackend();
+    }
+
+    // HFP
     connectHFP();
+
     handleAutoAnswer();
+
     connectSCO();
-    const uint32_t btMs = millis() - t;
 
-    t = millis();
+    // Events
     handlePendingEvents();
-    sendPlaybackDone();
-    const uint32_t eventsMs = millis() - t;
 
-    t = millis();
+    // Audio
     handleAudioStreaming();
-    const uint32_t audioMs = millis() - t;
 
-    t = millis();
-    if (!callActive) {
-        printDeferredDebug();
-        printSystemStatus();
-    }
-    const uint32_t debugMs = millis() - t;
+    // Debug
+    printDeferredDebug();
 
-    const uint32_t totalMs = millis() - loopStart;
+    // Status
+    printSystemStatus();
 
-    static uint32_t lastReport = 0;
-    static uint32_t maxTotal = 0;
-    static uint32_t maxWs = 0;
-    static uint32_t maxAudio = 0;
-    static uint32_t maxBt = 0;
+    delay(0);
 
-    if (totalMs > maxTotal) maxTotal = totalMs;
-    if (wsMs > maxWs) maxWs = wsMs;
-    if (audioMs > maxAudio) maxAudio = audioMs;
-    if (btMs > maxBt) maxBt = btMs;
+    unsigned long loopTime =
+        millis() - loopStart;
 
-    if (millis() - lastReport >= 10000) {
-        lastReport = millis();
-
-        Serial.printf(
-            "[LOOP DIAG] total=%lu ms | WS=%lu | WiFi=%lu"
-            " | BT=%lu | events=%lu | audio=%lu | debug=%lu"
-            " | maxTotal=%lu maxWS=%lu maxAudio=%lu maxBT=%lu\n",
-            (unsigned long)totalMs,
-            (unsigned long)wsMs,
-            (unsigned long)wifiMs,
-            (unsigned long)btMs,
-            (unsigned long)eventsMs,
-            (unsigned long)audioMs,
-            (unsigned long)debugMs,
-            (unsigned long)maxTotal,
-            (unsigned long)maxWs,
-            (unsigned long)maxAudio,
-            (unsigned long)maxBt
-        );
-
-        maxTotal = maxWs = maxAudio = maxBt = 0;
-    }
+    if (loopTime > maxLoopMs)
+        maxLoopMs = loopTime;
 
     delay(1);
 }

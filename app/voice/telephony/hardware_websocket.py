@@ -390,6 +390,8 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
     messages = []
     conversation_repo = ConversationRepository()
 
+    print(f'i wrote this data****',ctx,session_id,graph,system_prompt,messages,conversation_repo)
+
     audio_monitor = AudioMonitor(device_id)
     stt_transcriber = SpeechTranscriber(device_id)
     pacer = PacedPCMSender(websocket, device_id)
