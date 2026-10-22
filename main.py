@@ -39,6 +39,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    from app.voice.telephony.hardware_websocket import close_hardware_webrtc_peers
+    await close_hardware_webrtc_peers()
     await mongodb.disconnect()
     await redis_client.disconnect()
     try:

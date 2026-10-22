@@ -46,7 +46,7 @@ from app.modules.platform_configs.platform_config_route import (
 )
 from app.voice.telephony.hardware_websocket import router as hardware_websocket_router
 
-from app.voice.telephony.hardware_websocket import router as hardware_webrtc_router
+
 
      
 
@@ -98,4 +98,4 @@ api_router.include_router(live_feed_router)
 api_router.include_router(platform_configs_router)
 api_router.include_router(platform_config_router)
 api_router.include_router(hardware_websocket_router)
-api_router.include_router(hardware_webrtc_router)
+

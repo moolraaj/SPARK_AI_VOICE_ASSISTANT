@@ -1,5 +1,8 @@
 """
-Hardware Voice WebSocket Router - v4 (DEBUG + CONVERSATION LOGS).
+Hardware voice session over WebRTC.
+
+The ESP32 posts an SDP offer to /api/v1/webrtc/offer/{device_id}.
+Audio is G.711 A-law at 8 kHz. JSON events use the negotiated data channel.
 
 Changes vs v3:
   1. logging.basicConfig(INFO) -> Sarvam / STT logger.info lines ab terminal me dikhengi.
@@ -10,6 +13,17 @@ Changes vs v3:
   6. Bahut chhote transcripts (<3 chars) ignore (noise "hmm" se barge-in nahi hoga).
   7. Device credit / playback IDs replace estimated TTS pacing.
   8. DEBUG_EVENTS=1 env se graph events print kar sakte ho.
+
+Transport patch:
+  - Pace all outbound frames, including idle silence, at 20 ms intervals.
+  - Drop unsent PCM on cancellation/failure without resetting RTP timestamps.
+  - Trim input audio plane alignment padding before feeding STT.
+  - Separate session creation logs from actual transport/data-channel readiness.
+
+Firmware compatibility note: the existing byte-count playback protocol does not
+identify individual RTP frames by playback_id. Idle silence, loss and control /
+media reordering still require a coordinated firmware protocol update. This file
+fixes backend pacing; it does not claim to fix an ESP32 reconnect panic.
 """
 
 import os
@@ -21,8 +35,13 @@ import wave
 import logging
 import asyncio
 from array import array
+from fractions import Fraction
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Request, WebSocketDisconnect
+from aiortc import RTCPeerConnection, RTCRtpSender, RTCSessionDescription
+from aiortc.mediastreams import MediaStreamTrack, MediaStreamError
+from av import AudioFrame
+from av.audio.resampler import AudioResampler
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.ai.context.session_context_resolver import SessionContextResolver
@@ -33,14 +52,52 @@ from app.modules.organizations.organization_repository import OrganizationReposi
 from app.database.mongodb import mongodb
 from app.voice.telephony.sarvam_stt import SpeechTranscriber, synthesize_tts_pcm
 
+tts_log = logging.getLogger("tts_stream")
+
+def log_tts(event: str, **fields):
+    record = {
+        "event": event,
+        "ts": time.time(),
+        **fields,
+    }
+    tts_log.info(
+        json.dumps(record, ensure_ascii=False, default=str)
+    )
+
 # Logger ko INFO pe laao, warna [SARVAM TTS] / [SPEECH RECOGNITION] lines dikhti hi nahi
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
+logging.getLogger("aiortc.rtcsctptransport").setLevel(logging.DEBUG)
+logging.getLogger("aiortc.rtcdatachannel").setLevel(logging.DEBUG)
+logging.getLogger("aiortc.rtcdtlstransport").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
+# Temporary WebRTC handshake diagnostics
+logging.getLogger("aiortc.rtcsctptransport").setLevel(logging.DEBUG)
+logging.getLogger("aiortc.rtcdatachannel").setLevel(logging.DEBUG)
+logging.getLogger("aiortc.rtcdtlstransport").setLevel(logging.DEBUG)
 
-router = APIRouter(tags=["Hardware Voice WebSocket"])
+
+def log_sdp_transport(label: str, sdp: str):
+    prefixes = (
+        "m=",
+        "a=mid:",
+        "a=group:",
+        "a=setup:",
+        "a=sctp-port:",
+        "a=sctpmap:",
+        "a=max-message-size:",
+    )
+
+    lines = [
+        line for line in sdp.splitlines()
+        if line.startswith(prefixes)
+    ]
+
+    logger.info("[SDP %s]\n%s", label, "\n".join(lines))
+
+router = APIRouter(tags=["Hardware Voice WebRTC"])
 
 AUDIO_LOG_EVERY = int(os.getenv("AUDIO_LOG_EVERY", "0"))
 SAVE_AUDIO_WAV = os.getenv("SAVE_AUDIO_WAV", "0") == "1"
@@ -103,11 +160,11 @@ def extract_text(content) -> str:
 
 
 def print_user(number: str, text: str):
-    print(f"\n👤 USER ({number}): {text}", flush=True)
+    print(f"user: {text}", flush=True)
 
 
 def print_ai(name: str, text: str):
-    print(f"🤖 AI   ({name}): {text}\n", flush=True)
+    print(f"ai: {text}", flush=True)
 
 
 # =====================================================================
@@ -238,25 +295,26 @@ async def resolve_org_name(ctx) -> str:
 # PACED PCM SENDER
 # ============================================================
 class PacedPCMSender:
-    """Single-stream PCM sender with device credit and correlated completion.
+    """Ordered PCM sender with per-sentence and per-chunk JSON diagnostics.
 
-    'played' means consumed by the ESP32 SCO callback, not acoustic confirmation.
-    Requires the hardware.ino supplied with this bundle.
+    Device 'played' means consumed by the ESP32 SCO callback, not acoustic
+    confirmation from the speaker.
     """
 
-    def __init__(self, websocket: WebSocket, device_id: str):
+    def __init__(self, websocket, device_id: str):
         self.ws = websocket
         self.device_id = device_id
         self.serial = 0
         self.active_id = None
         self.busy = False
-        self.sent = 0
-        self.played = 0
+        self.sent = 0                 # bytes submitted to websocket
+        self.played = 0               # bytes reported consumed by device
         self.capacity = 0
         self.rate = 8000
         self.updated = asyncio.Event()
         self.done = asyncio.Event()
         self.completion = None
+        self.last_sentence_end_mono = None
 
     def reset(self):
         self.active_id = None
@@ -264,9 +322,10 @@ class PacedPCMSender:
         self.sent = self.played = self.capacity = 0
         self.completion = None
         self.updated.set()
+        self.done.set()
 
     def seconds_ahead(self) -> float:
-        return max(0, self.sent - self.played) / (self.rate * 2)
+        return max(0, self.sent - self.played) / max(self.rate * 2, 1)
 
     def on_device_event(self, payload: dict):
         try:
@@ -274,32 +333,77 @@ class PacedPCMSender:
             played = int(payload.get("played", 0))
             received = int(payload.get("received", 0))
         except (TypeError, ValueError):
+            log_tts("device_feedback_invalid", device_id=self.device_id, payload=payload)
             return
+
         if stream_id != self.active_id or not self.busy:
             return
+
         if not (0 <= played <= received <= self.sent):
+            log_tts(
+                "device_feedback_out_of_range",
+                device_id=self.device_id,
+                sentence_id=stream_id,
+                backend_submitted_bytes=self.sent,
+                device_received_bytes=received,
+                device_played_bytes=played,
+            )
             return
+
         self.played = max(self.played, played)
-        if payload.get("event") == "ai_audio_buffer":
+        event = payload.get("event")
+
+        if event == "ai_audio_buffer":
             try:
                 capacity = int(payload.get("capacity", 0))
             except (TypeError, ValueError):
                 return
             if capacity < 2 * TTS_SEND_CHUNK:
+                log_tts(
+                    "device_buffer_too_small", device_id=self.device_id,
+                    sentence_id=stream_id, capacity_bytes=capacity,
+                )
                 return
             self.capacity = capacity
-        elif payload.get("event") == "ai_audio_played":
+            log_tts(
+                "device_buffer_ready", device_id=self.device_id,
+                sentence_id=stream_id, capacity_bytes=capacity,
+            )
+        elif event == "ai_audio_played":
             self.completion = payload
             self.done.set()
+            log_tts(
+                "device_playback_ack", device_id=self.device_id,
+                sentence_id=stream_id, received_bytes=received,
+                played_bytes=played, dropped_bytes=payload.get("dropped"),
+                ok=payload.get("ok"),
+            )
+        else:
+            log_tts(
+                "device_audio_progress", device_id=self.device_id,
+                sentence_id=stream_id, device_event=event,
+                received_bytes=received, played_bytes=played,
+                backend_submitted_bytes=self.sent,
+                bytes_in_flight=max(0, self.sent - self.played),
+            )
+
         self.updated.set()
 
     async def _wait_for_update(self):
         await asyncio.wait_for(self.updated.wait(), TTS_FEEDBACK_TIMEOUT_SEC)
 
     async def send(self, pcm: bytes, rate: int, text: str = "") -> bool:
-        pcm = pcm[:len(pcm) & ~1]
+        pcm = pcm[:len(pcm) & ~1]  # complete PCM16 samples only
         if not pcm:
+            log_tts("tts_sentence_empty", device_id=self.device_id, text=text)
             return False
+        if self.busy:
+            log_tts(
+                "tts_sender_busy", device_id=self.device_id,
+                active_sentence_id=self.active_id, text=text,
+            )
+            return False
+
         self.serial = (self.serial + 1) & 0xFFFFFFFF
         if not self.serial:
             self.serial = 1
@@ -311,55 +415,196 @@ class PacedPCMSender:
         self.completion = None
         self.updated.clear()
         self.done.clear()
+
         started = time.monotonic()
+        inter_sentence_gap_ms = None
+        if self.last_sentence_end_mono is not None:
+            inter_sentence_gap_ms = (started - self.last_sentence_end_mono) * 1000
+
+        total_chunks = (len(pcm) + TTS_SEND_CHUNK - 1) // TTS_SEND_CHUNK
+        attempted_chunks = sent_chunks = failed_chunks = 0
+        chunk_send_ms_total = credit_wait_ms_total = 0.0
+        max_chunk_gap_ms = 0.0
+        previous_chunk_end = None
+        last_error = None
+        window = 0
+
+        log_tts(
+            "tts_sentence_start", device_id=self.device_id,
+            sentence_id=stream_id, text=text, sample_rate=rate,
+            pcm_bytes=len(pcm), chunk_size_bytes=TTS_SEND_CHUNK,
+            total_chunks=total_chunks,
+            expected_audio_ms=round(len(pcm) / max(rate * 2, 1) * 1000, 2),
+            inter_sentence_gap_ms=(round(inter_sentence_gap_ms, 2)
+                                    if inter_sentence_gap_ms is not None else None),
+        )
+
         try:
             await self.ws.send_text(json.dumps({
                 "event": "ai_audio_start", "playback_id": stream_id,
                 "sample_rate": rate, "total_bytes": len(pcm),
             }))
+
+            buffer_wait_start = time.monotonic()
             while not self.capacity:
                 self.updated.clear()
                 if self.done.is_set():
                     raise RuntimeError("Hardware rejected playback start")
                 await self._wait_for_update()
 
-            # Reserve two packet slots; all in-flight bytes count against credit.
-            window = min(self.capacity - 2 * TTS_SEND_CHUNK,
-                         int(rate * 2 * TTS_BUFFER_TARGET_SEC)) & ~1
+            window = min(
+                self.capacity - 2 * TTS_SEND_CHUNK,
+                int(rate * 2 * TTS_BUFFER_TARGET_SEC),
+            ) & ~1
             if window < TTS_SEND_CHUNK:
-                raise RuntimeError("Hardware buffer is too small")
+                raise RuntimeError(f"Hardware buffer/window too small: {window}")
+
+            log_tts(
+                "tts_buffer_wait_complete", device_id=self.device_id,
+                sentence_id=stream_id,
+                wait_ms=round((time.monotonic() - buffer_wait_start) * 1000, 2),
+                device_capacity_bytes=self.capacity, send_window_bytes=window,
+            )
+
             for offset in range(0, len(pcm), TTS_SEND_CHUNK):
                 chunk = pcm[offset:offset + TTS_SEND_CHUNK]
+                chunk_index = offset // TTS_SEND_CHUNK + 1
+                credit_wait_start = time.monotonic()
+
                 while self.sent - self.played + len(chunk) > window:
                     self.updated.clear()
                     if self.done.is_set():
                         raise RuntimeError("Hardware aborted PCM stream")
                     await self._wait_for_update()
+
+                credit_wait_ms = (time.monotonic() - credit_wait_start) * 1000
+                credit_wait_ms_total += credit_wait_ms
                 if self.done.is_set():
                     raise RuntimeError("Hardware completed before all PCM was sent")
-                # Record before await: an acknowledgement can arrive during send.
+
+                attempted_chunks += 1
+                send_started = time.monotonic()
+                gap_ms = 0.0
+                if previous_chunk_end is not None:
+                    gap_ms = (send_started - previous_chunk_end) * 1000
+                    max_chunk_gap_ms = max(max_chunk_gap_ms, gap_ms)
+
+                # Existing protocol counts bytes in-flight before awaiting send.
                 self.sent += len(chunk)
-                await self.ws.send_bytes(chunk)
+                try:
+                    await self.ws.send_bytes(chunk)
+                    send_finished = time.monotonic()
+                    previous_chunk_end = send_finished
+                    send_ms = (send_finished - send_started) * 1000
+                    chunk_send_ms_total += send_ms
+                    sent_chunks += 1
+                    log_tts(
+                        "tts_chunk_sent", device_id=self.device_id,
+                        sentence_id=stream_id, chunk_index=chunk_index,
+                        total_chunks=total_chunks, chunk_bytes=len(chunk),
+                        cumulative_backend_sent_bytes=self.sent,
+                        device_played_bytes=self.played,
+                        bytes_in_flight=max(0, self.sent - self.played),
+                        send_ms=round(send_ms, 2),
+                        credit_wait_ms=round(credit_wait_ms, 2),
+                        gap_from_previous_chunk_ms=round(gap_ms, 2),
+                        backend_send_status="ok",
+                    )
+                except Exception as exc:
+                    failed_chunks += 1
+                    last_error = str(exc)
+                    log_tts(
+                        "tts_chunk_send_failed", device_id=self.device_id,
+                        sentence_id=stream_id, chunk_index=chunk_index,
+                        total_chunks=total_chunks, chunk_bytes=len(chunk),
+                        cumulative_backend_submitted_bytes=self.sent,
+                        error=last_error,
+                    )
+                    raise
 
             await self.ws.send_text(json.dumps({
                 "event": "ai_audio_end", "playback_id": stream_id,
             }))
+
+            ack_wait_start = time.monotonic()
             await asyncio.wait_for(self.done.wait(), TTS_COMPLETION_TIMEOUT_SEC)
+            ack_wait_ms = (time.monotonic() - ack_wait_start) * 1000
             result = self.completion or {}
-            if (result.get("ok") is not True or
-                    int(result.get("played", -1)) != len(pcm) or
-                    int(result.get("received", -1)) != len(pcm) or
-                    int(result.get("dropped", -1)) != 0):
+            received = int(result.get("received", -1))
+            played = int(result.get("played", -1))
+            dropped = int(result.get("dropped", -1))
+            complete = (
+                result.get("ok") is True and received == len(pcm)
+                and played == len(pcm) and dropped == 0
+                and sent_chunks == total_chunks
+            )
+
+            log_tts(
+                "tts_sentence_summary", device_id=self.device_id,
+                sentence_id=stream_id, text=text, sample_rate=rate,
+                pcm_bytes=len(pcm), chunk_size_bytes=TTS_SEND_CHUNK,
+                total_chunks=total_chunks, attempted_chunks=attempted_chunks,
+                backend_sent_chunks=sent_chunks,
+                backend_failed_chunks=failed_chunks,
+                backend_unsent_chunks=max(0, total_chunks - sent_chunks),
+                backend_submitted_bytes=self.sent,
+                esp_received_bytes=received, esp_played_bytes=played,
+                esp_dropped_bytes=dropped,
+                chunk_send_total_ms=round(chunk_send_ms_total, 2),
+                average_chunk_send_ms=round(chunk_send_ms_total / max(sent_chunks, 1), 2),
+                total_credit_wait_ms=round(credit_wait_ms_total, 2),
+                max_chunk_gap_ms=round(max_chunk_gap_ms, 2),
+                completion_ack_wait_ms=round(ack_wait_ms, 2),
+                playback_elapsed_ms=round((time.monotonic() - started) * 1000, 2),
+                inter_sentence_gap_ms=(round(inter_sentence_gap_ms, 2)
+                                        if inter_sentence_gap_ms is not None else None),
+                status="ok" if complete else "incomplete",
+            )
+
+            logger.info(
+                "[TTS STREAM CHECK] device=%s id=%s expected=%d sent_chunks=%d/%d "
+                "received=%s played=%s dropped=%s ok=%s",
+                self.device_id, stream_id, len(pcm), sent_chunks, total_chunks,
+                result.get("received"), result.get("played"),
+                result.get("dropped"), result.get("ok"),
+            )
+            if not complete:
                 raise RuntimeError(f"Incomplete hardware playback: {result}")
-            logger.info("TTS PLAYED device=%s id=%s bytes=%s elapsed=%.2fs text=%r",
-                        self.device_id, stream_id, len(pcm),
-                        time.monotonic() - started, text[:60])
+
+            logger.info(
+                "TTS PLAYED device=%s id=%s bytes=%s elapsed=%.2fs text=%r",
+                self.device_id, stream_id, len(pcm),
+                time.monotonic() - started, text[:60],
+            )
             return True
+
         except asyncio.CancelledError:
+            log_tts(
+                "tts_sentence_cancelled", device_id=self.device_id,
+                sentence_id=stream_id, text=text,
+                total_chunks=total_chunks, attempted_chunks=attempted_chunks,
+                backend_sent_chunks=sent_chunks,
+                backend_failed_chunks=failed_chunks,
+                backend_unsent_chunks=max(0, total_chunks - sent_chunks),
+                backend_submitted_bytes=self.sent,
+            )
             raise
-        except Exception:
-            logger.exception("TTS playback failed: device=%s id=%s sent=%s played=%s",
-                             self.device_id, stream_id, self.sent, self.played)
+        except Exception as exc:
+            last_error = str(exc)
+            log_tts(
+                "tts_sentence_failed", device_id=self.device_id,
+                sentence_id=stream_id, text=text, total_chunks=total_chunks,
+                attempted_chunks=attempted_chunks, backend_sent_chunks=sent_chunks,
+                backend_failed_chunks=failed_chunks,
+                backend_unsent_chunks=max(0, total_chunks - sent_chunks),
+                backend_submitted_bytes=self.sent, device_played_bytes=self.played,
+                elapsed_ms=round((time.monotonic() - started) * 1000, 2),
+                error=last_error,
+            )
+            logger.exception(
+                "TTS playback failed: device=%s id=%s sent=%s played=%s",
+                self.device_id, stream_id, self.sent, self.played,
+            )
             try:
                 await asyncio.wait_for(self.ws.send_text(json.dumps({
                     "event": "ai_audio_cancel", "playback_id": stream_id,
@@ -369,19 +614,19 @@ class PacedPCMSender:
                 pass
             return False
         finally:
+            self.last_sentence_end_mono = time.monotonic()
             if self.active_id == stream_id:
                 self.busy = False
                 self.active_id = None
 
 
-@router.websocket("/ws/voice/{device_id}")
-async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
-    """Direct WebSocket connection for physical hardware devices."""
+async def hardware_voice_websocket(websocket, device_id: str):
+    """Run the hardware voice session on a WebRTC link."""
     await websocket.accept()
     print("\n==================================================", flush=True)
-    print(f"🔌 [WEBSOCKET CONNECTED] Device ID: {device_id}", flush=True)
+    print(f"🔌 [WEBRTC SESSION CREATED] Device ID: {device_id}", flush=True)
     print("==================================================\n", flush=True)
-    logger.info(f"🔌 Hardware WebSocket connected | device_id={device_id}")
+    logger.info("WebRTC session created; waiting for device events | device_id=%s", device_id)
 
     ctx = None
     session_id = None
@@ -390,7 +635,6 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
     messages = []
     conversation_repo = ConversationRepository()
 
-    print(f'i wrote this data****',ctx,session_id,graph,system_prompt,messages,conversation_repo)
 
     audio_monitor = AudioMonitor(device_id)
     stt_transcriber = SpeechTranscriber(device_id)
@@ -459,54 +703,128 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
     async def synth_worker():
         while True:
             text, speaker, rate, generation = await tts_queue.get()
+            synth_started = time.monotonic()
+            log_tts(
+                "tts_synthesis_start", device_id=device_id,
+                generation=generation, text=text, sample_rate=rate,
+                tts_queue_size=tts_queue.qsize(),
+            )
             try:
                 if generation != tts_generation:
+                    log_tts(
+                        "tts_synthesis_skipped_stale", device_id=device_id,
+                        generation=generation, current_generation=tts_generation,
+                        text=text,
+                    )
                     continue
 
-                t0 = time.monotonic()
-                pcm = await synthesize_tts_pcm(text, sample_rate=rate, speaker=speaker)
+                pcm = await synthesize_tts_pcm(
+                    text, sample_rate=rate, speaker=speaker
+                )
+                synthesis_ms = (time.monotonic() - synth_started) * 1000
 
                 if generation != tts_generation:
-                    print(f"🗑️ [TTS STALE] Dropping synthesized audio | gen={generation} current={tts_generation}", flush=True)
+                    log_tts(
+                        "tts_synthesis_dropped_stale", device_id=device_id,
+                        generation=generation, current_generation=tts_generation,
+                        text=text, synthesis_ms=round(synthesis_ms, 2),
+                        pcm_bytes=len(pcm or b""),
+                    )
                     continue
 
                 if pcm:
-                    print(f"⏱️ [TTS SYNTH] {(time.monotonic() - t0) * 1000:.0f} ms | gen={generation} | '{text[:40]}'", flush=True)
+                    pcm_bytes = len(pcm)
+                    expected_audio_ms = pcm_bytes / max(rate * 2, 1) * 1000
+                    log_tts(
+                        "tts_synthesis_complete", device_id=device_id,
+                        generation=generation, text=text, sample_rate=rate,
+                        pcm_bytes=pcm_bytes,
+                        total_chunks=(pcm_bytes + TTS_SEND_CHUNK - 1) // TTS_SEND_CHUNK,
+                        synthesis_ms=round(synthesis_ms, 2),
+                        expected_audio_ms=round(expected_audio_ms, 2),
+                        realtime_factor=round(synthesis_ms / max(expected_audio_ms, 1), 3),
+                    )
                     await pcm_queue.put((pcm, rate, text, generation))
+                    log_tts(
+                        "tts_pcm_queued", device_id=device_id,
+                        generation=generation, text=text, pcm_bytes=pcm_bytes,
+                        pcm_queue_size=pcm_queue.qsize(),
+                    )
                 else:
-                    print(f"⚠️ [TTS] Empty/failed audio for device={device_id} | speaker={speaker} | '{text[:40]}'", flush=True)
+                    log_tts(
+                        "tts_synthesis_empty", device_id=device_id,
+                        generation=generation, text=text,
+                        synthesis_ms=round(synthesis_ms, 2),
+                    )
+                    print(
+                        f"⚠️ [TTS] Empty/failed audio for device={device_id} "
+                        f"| speaker={speaker} | '{text[:40]}'", flush=True,
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception as tts_err:
+                log_tts(
+                    "tts_synthesis_failed", device_id=device_id,
+                    generation=generation, text=text,
+                    elapsed_ms=round((time.monotonic() - synth_started) * 1000, 2),
+                    error=str(tts_err),
+                )
                 logger.error(f"TTS synth worker error: {tts_err}", exc_info=True)
             finally:
-                try:
-                    tts_queue.task_done()
-                except Exception:
-                    pass
+                tts_queue.task_done()
 
     async def play_worker():
         nonlocal tts_generation
         while True:
             pcm, rate, text, generation = await pcm_queue.get()
+            play_started = time.monotonic()
             try:
                 if generation != tts_generation:
+                    log_tts(
+                        "tts_pcm_skipped_stale", device_id=device_id,
+                        generation=generation, current_generation=tts_generation,
+                        text=text, pcm_bytes=len(pcm),
+                    )
                     continue
+
+                log_tts(
+                    "tts_playback_start", device_id=device_id,
+                    generation=generation, text=text, pcm_bytes=len(pcm),
+                    sample_rate=rate, pcm_queue_size=pcm_queue.qsize(),
+                )
                 tts_gate_on()
                 sent_ok = await pacer.send(pcm, rate, text)
+                log_tts(
+                    "tts_playback_worker_complete", device_id=device_id,
+                    generation=generation, text=text, pcm_bytes=len(pcm),
+                    success=sent_ok,
+                    elapsed_ms=round((time.monotonic() - play_started) * 1000, 2),
+                )
+
                 if not sent_ok and generation == tts_generation:
-                    # Invalidate also the sentence currently being synthesized.
+                    old_generation = tts_generation
                     tts_generation += 1
+                    log_tts(
+                        "tts_generation_invalidated", device_id=device_id,
+                        old_generation=old_generation,
+                        new_generation=tts_generation,
+                        reason="playback_failed",
+                    )
                     clear_tts_queue()
+
                 if generation == tts_generation and not pcm_queue.empty():
-                    # Keep the gate closed across ready consecutive sentences.
+                    # Keep STT gated while another synthesized sentence is ready.
                     pass
                 else:
                     tts_gate_off_now()
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
                 tts_gate_off_now()
+                log_tts(
+                    "tts_play_worker_exception", device_id=device_id,
+                    generation=generation, text=text, error=str(exc),
+                )
                 logger.exception("TTS play worker failed: device=%s", device_id)
             finally:
                 pcm_queue.task_done()
@@ -528,25 +846,58 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
                 logger.warning(f"tts worker cancel wait error: {e}")
         tts_tasks.clear()
 
-    def _drain(q: asyncio.Queue):
-        while not q.empty():
+    def _drain(q: asyncio.Queue, queue_name: str):
+        dropped_items = 0
+        while True:
             try:
-                q.get_nowait()
-                q.task_done()
-            except (asyncio.QueueEmpty, ValueError):
+                item = q.get_nowait()
+            except asyncio.QueueEmpty:
                 break
+            dropped_items += 1
+            try:
+                if queue_name == "tts_queue":
+                    text, speaker, rate, generation = item
+                    pcm_bytes = None
+                else:
+                    pcm, rate, text, generation = item
+                    pcm_bytes = len(pcm)
+                log_tts(
+                    "tts_queue_item_dropped", device_id=device_id,
+                    queue=queue_name, generation=generation,
+                    text=str(text)[:160], pcm_bytes=pcm_bytes,
+                    reason="queue_cleared",
+                )
+            except Exception:
+                logger.exception("Could not log dropped item from %s", queue_name)
+            finally:
+                q.task_done()
+        return dropped_items
 
     def clear_tts_queue():
-        _drain(tts_queue)
-        _drain(pcm_queue)
+        dropped_tts = _drain(tts_queue, "tts_queue")
+        dropped_pcm = _drain(pcm_queue, "pcm_queue")
+        log_tts(
+            "tts_queue_clear_summary", device_id=device_id,
+            dropped_tts_items=dropped_tts, dropped_pcm_items=dropped_pcm,
+        )
 
     async def cancel_tts_playback(reason: str = "new user speech"):
         nonlocal tts_generation
+        old_generation = tts_generation
         tts_generation += 1
         generation = tts_generation
         tts_gate_off_now()
 
-        print(f"🛑 [TTS CANCEL] device={device_id} gen={generation} reason={reason}", flush=True)
+        log_tts(
+            "tts_cancel_requested", device_id=device_id,
+            old_generation=old_generation, generation=generation,
+            reason=reason, tts_queue_size=tts_queue.qsize(),
+            pcm_queue_size=pcm_queue.qsize(),
+        )
+        print(
+            f"🛑 [TTS CANCEL] device={device_id} gen={generation} reason={reason}",
+            flush=True,
+        )
 
         try:
             await websocket.send_text(json.dumps({
@@ -559,6 +910,7 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
 
         await stop_tts_workers()
         clear_tts_queue()
+        websocket.clear_pending_audio()
         pacer.reset()
         start_tts_workers()
 
@@ -571,8 +923,15 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
         text = (text or "").strip()
         if not text:
             return
+        generation = tts_generation
+        log_tts(
+            "tts_sentence_queued", device_id=device_id,
+            generation=generation, text=text, text_chars=len(text),
+            sample_rate=device_sample_rate,
+            tts_queue_size=tts_queue.qsize(), pcm_queue_size=pcm_queue.qsize(),
+        )
         tts_queue.put_nowait(
-            (text, speaker, device_sample_rate, tts_generation)
+            (text, speaker, device_sample_rate, generation)
         )
 
     async def cancel_active_turn():
@@ -973,8 +1332,7 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
                 if event_type in ("ai_audio_buffer", "ai_audio_played"):
                     pacer.on_device_event(payload)
                     continue
-                if DEBUG_EVENTS:
-                    print(f"[DEVICE EVENT TYPE] {event_type}", flush=True)
+                logger.info("[DEVICE EVENT] device=%s event=%s", device_id, event_type)
 
                 try:
                     # ---------------- device_ready ----------------
@@ -1021,7 +1379,16 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
                     elif event_type == "audio_format":
                         s_rate = int(payload.get("sample_rate", 8000))
                         codec_name = str(payload.get("codec", "unknown"))
-                        audio_monitor.set_format(sample_rate=s_rate, codec=codec_name)
+
+                        # WebRTC incoming track is already resampled to WEBRTC_SAMPLE_RATE.
+                        if isinstance(websocket, WebRTCHardwareLink):
+                            s_rate = WEBRTC_SAMPLE_RATE
+                            codec_name = "webrtc-pcm-s16le"
+
+                        audio_monitor.set_format(
+                            sample_rate=s_rate,
+                            codec=codec_name,
+                        )
                         stt_transcriber.set_sample_rate(s_rate)
                         device_sample_rate = s_rate
 
@@ -1101,7 +1468,7 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
 
     except (WebSocketDisconnect, RuntimeError) as disc_err:
         print("\n==================================================", flush=True)
-        print(f"🔴 [WEBSOCKET DISCONNECTED] Device ID: {device_id} | reason={disc_err}", flush=True)
+        print(f"🔴 [WEBRTC DISCONNECTED] Device ID: {device_id} | reason={disc_err}", flush=True)
         print("==================================================\n", flush=True)
         logger.info(f"🔌 Hardware WebSocket Disconnected: {device_id}")
     except asyncio.CancelledError:
@@ -1139,3 +1506,475 @@ async def hardware_voice_websocket(websocket: WebSocket, device_id: str):
             await websocket.close()
         except Exception:
             pass
+
+
+# ============================================================
+# WEBRTC LINK  (ESP32 offer -> this backend)
+# ============================================================
+WEBRTC_SAMPLE_RATE = 8000
+_WEBRTC_PEERS: set = set()
+_DEVICE_LINKS: dict[str, "WebRTCHardwareLink"] = {}
+
+
+class WebRTCPCMTrack(MediaStreamTrack):
+    """Outbound PCM paced at 20 ms; timestamps survive playback cancellation."""
+
+    kind = "audio"
+
+    def __init__(self, sample_rate: int = WEBRTC_SAMPLE_RATE):
+        super().__init__()
+        if sample_rate != 8000:
+            raise ValueError("This hardware transport requires 8000 Hz PCM")
+        self.sample_rate = sample_rate
+        self._queue: asyncio.Queue = asyncio.Queue()
+        self._buffer = bytearray()
+        self._pts = 0
+        self._next_frame_at = None
+        self._report_started = None
+        self._report_frames = 0
+
+    def clear_pending(self):
+        """Discard unsent samples. Already transmitted RTP cannot be recalled."""
+        dropped = len(self._buffer)
+        self._buffer.clear()
+        while True:
+            try:
+                dropped += len(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        return dropped
+
+    def stop(self):
+        self.clear_pending()
+        super().stop()
+
+    async def push_pcm(self, data: bytes):
+        if self.readyState != "live":
+            raise MediaStreamError
+        data = data[:len(data) & ~1]
+        if data:
+            self._queue.put_nowait(bytes(data))
+
+    async def recv(self) -> AudioFrame:
+        if self.readyState != "live":
+            raise MediaStreamError
+        loop = asyncio.get_running_loop()
+        samples = self.sample_rate // 50
+        duration = samples / self.sample_rate
+        need = samples * 2
+        now = loop.time()
+        if self._next_frame_at is None:
+            self._next_frame_at = now
+        wait = self._next_frame_at - now
+        if wait > 0:
+            await asyncio.sleep(wait)
+        if self.readyState != "live":
+            raise MediaStreamError
+        now = loop.time()
+        # Preserve normal cadence, but never burst to catch up after a stall.
+        if now - self._next_frame_at >= duration:
+            self._next_frame_at = now
+        self._next_frame_at += duration
+
+        while len(self._buffer) < need:
+            try:
+                self._buffer.extend(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        take = min(need, len(self._buffer))
+        pcm = bytes(self._buffer[:take])
+        del self._buffer[:take]
+        if take < need:
+            pcm += b"\x00" * (need - take)
+
+        frame = AudioFrame(format="s16", layout="mono", samples=samples)
+        frame.sample_rate = self.sample_rate
+        frame.planes[0].update(pcm)
+        frame.pts = self._pts
+        frame.time_base = Fraction(1, self.sample_rate)
+        self._pts += samples
+
+        if self._report_started is None:
+            self._report_started = now
+        self._report_frames += 1
+        elapsed = now - self._report_started
+        if elapsed >= 5.0:
+            logger.info(
+                "[RTC TX PACE] frames=%d elapsed=%.2fs fps=%.1f target=50",
+                self._report_frames, elapsed,
+                self._report_frames / elapsed,
+            )
+            self._report_started = now
+            self._report_frames = 0
+        return frame
+
+
+class WebRTCHardwareLink:
+    """Same send/receive shape the voice session used for the old WebSocket."""
+
+    def __init__(self, pc, outgoing: WebRTCPCMTrack, device_id: str):
+        self.pc = pc
+        self.outgoing = outgoing
+        self.device_id = device_id
+        self.incoming: asyncio.Queue = asyncio.Queue()
+        self.channel = None
+        self.pending_text: list[str] = []
+        self.closed = False
+        self._audio_tasks: set = set()
+
+    async def accept(self):
+        return None
+
+    def set_data_channel(self, channel):
+        if self.channel is channel:
+            return
+        if self.channel is not None:
+            logger.warning("Ignoring extra data channel: device=%s label=%s",
+                           self.device_id, channel.label)
+            return
+        self.channel = channel
+
+        @channel.on("open")
+        def on_open():
+            logger.info("WebRTC data channel open: %s", channel.label)
+            self._flush_pending()
+
+        @channel.on("close")
+        def on_close():
+            logger.warning("WebRTC data channel closed for device=%s", self.device_id)
+            if not self.closed:
+                self.incoming.put_nowait({
+                    "type": "websocket.disconnect",
+                    "code": 1000,
+                    "reason": "WebRTC data channel closed",
+                })
+
+        if channel.readyState == "open":
+            on_open()
+
+        @channel.on("message")
+        def on_message(message):
+            if isinstance(message, bytes):
+                logger.warning("Ignoring binary data-channel message (%d bytes)", len(message))
+                return
+            self.incoming.put_nowait({"text": message})
+
+
+    async def feed_audio_track(self, track):
+        resampler = AudioResampler(
+            format="s16",
+            layout="mono",
+            rate=WEBRTC_SAMPLE_RATE,
+        )
+
+        frame_count = 0
+        total_pcm_bytes = 0
+
+        try:
+            while not self.closed:
+                frame = await track.recv()
+                frames = resampler.resample(frame) or []
+
+                if not isinstance(frames, list):
+                    frames = [frames]
+
+                for out_frame in frames:
+                    pcm = bytes(out_frame.planes[0])[
+                        :out_frame.samples * 2
+                    ]
+
+                    if not pcm:
+                        continue
+
+                    frame_count += 1
+                    total_pcm_bytes += len(pcm)
+
+                    self.incoming.put_nowait({"bytes": pcm})
+
+                    if frame_count % 100 == 0:
+                        logger.info(
+                            "[RTC RX AUDIO] device=%s "
+                            "frames=%d pcm_bytes=%d "
+                            "last_frame_bytes=%d",
+                            self.device_id,
+                            frame_count,
+                            total_pcm_bytes,
+                            len(pcm),
+                        )
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if not self.closed:
+                logger.exception(
+                    "WebRTC incoming audio ended: device=%s",
+                    self.device_id,
+                )
+                self.incoming.put_nowait({
+                    "type": "websocket.disconnect",
+                    "code": 1000,
+                    "reason": "WebRTC audio track ended",
+                })
+
+
+    def clear_pending_audio(self):
+        dropped = self.outgoing.clear_pending()
+        if dropped:
+            logger.info("Discarded unsent PCM: device=%s bytes=%d",
+                        self.device_id, dropped)
+        return dropped
+
+    async def receive(self):
+        return await self.incoming.get()
+
+    async def send_text(self, text: str):
+        if self.closed:
+            raise RuntimeError("WebRTC session is closed")
+        try:
+            event = json.loads(text).get("event")
+        except (ValueError, AttributeError):
+            event = None
+        if event in ("ai_audio_cancel", "ai_audio_start"):
+            self.clear_pending_audio()
+        if self.channel and self.channel.readyState == "open":
+            self.channel.send(text)
+            return
+        self.pending_text.append(text)
+        if len(self.pending_text) > 256:
+            self.pending_text = self.pending_text[-256:]
+
+    async def send_bytes(self, data: bytes):
+        if self.closed:
+            raise RuntimeError("WebRTC session is closed")
+        await self.outgoing.push_pcm(data)
+
+    async def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        for task in list(self._audio_tasks):
+            task.cancel()
+        self.outgoing.stop()
+        try:
+            self.incoming.put_nowait({
+                "type": "websocket.disconnect",
+                "code": 1000,
+                "reason": "WebRTC link closed",
+            })
+        except Exception:
+            pass
+        if self.pc.connectionState != "closed":
+            await self.pc.close()
+        _WEBRTC_PEERS.discard(self.pc)
+        if _DEVICE_LINKS.get(self.device_id) is self:
+            _DEVICE_LINKS.pop(self.device_id, None)
+
+    def _flush_pending(self):
+        if not self.channel or self.channel.readyState != "open":
+            return
+        for item in self.pending_text:
+            try:
+                self.channel.send(item)
+            except Exception:
+                logger.exception("Failed to flush queued WebRTC control message")
+        self.pending_text.clear()
+
+
+async def _attach_outgoing_audio(pc: RTCPeerConnection, track: WebRTCPCMTrack) -> None:
+    """Send AI audio on the offer's existing audio section."""
+    for transceiver in pc.getTransceivers():
+        if transceiver.kind != "audio":
+            continue
+        # The offer is sendrecv. aiortc starts the answer transceiver as recvonly
+        # until we explicitly send as well.
+        transceiver.direction = "sendrecv"
+        result = transceiver.sender.replaceTrack(track)
+        if asyncio.iscoroutine(result):
+            await result
+        return
+    pc.addTrack(track)
+
+
+def _sdp_for_esp(sdp: str, preferred_ip: str | None = None) -> str:
+    """Keep the answer in the shape the ESP32 peer parser accepts.
+
+    The board stores one SHA-256 fingerprint and a small candidate list.
+    Advertise the IPv4 address it used for signaling when that candidate exists.
+    """
+    def build(only_ip: str | None) -> str:
+        kept = []
+        for line in sdp.splitlines():
+            if line.startswith("a=fingerprint:") and not line.startswith("a=fingerprint:sha-256"):
+                continue
+            if line.startswith("a=candidate:"):
+                parts = line.split()
+                if len(parts) < 5 or ":" in parts[4]:
+                    continue
+                if only_ip and parts[4] != only_ip:
+                    continue
+            kept.append(line)
+        text = "\r\n".join(kept)
+        if text and not text.endswith("\r\n"):
+            text += "\r\n"
+        return text
+
+    chosen = build(preferred_ip)
+    if preferred_ip and "a=candidate:" not in chosen:
+        chosen = build(None)
+    return chosen
+
+
+def _prefer_pcma(pc) -> None:
+    try:
+        capabilities = RTCRtpSender.getCapabilities("audio")
+    except Exception:
+        return
+    preferred = [
+        codec for codec in capabilities.codecs
+        if str(getattr(codec, "mimeType", "")).lower() in ("audio/pcma", "audio/g711a")
+        or str(getattr(codec, "name", "")).upper() == "PCMA"
+    ]
+    if not preferred:
+        logger.warning("aiortc has no PCMA codec; the ESP32 answer may not match")
+        return
+    for transceiver in pc.getTransceivers():
+        if transceiver.kind != "audio":
+            continue
+        try:
+            transceiver.setCodecPreferences(preferred)
+        except Exception:
+            logger.exception("Could not pin the audio answer to PCMA")
+
+
+@router.post("/webrtc/offer/{device_id}")
+async def hardware_voice_webrtc_offer(request: Request, device_id: str):
+    """
+    ESP32 signaling endpoint.
+
+    POST {"type": "offer", "sdp": "<offer SDP>"}
+    Returns {"type": "answer", "sdp": "<answer SDP>"}
+    """
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Request body must be JSON") from exc
+
+    if body.get("type") != "offer" or not isinstance(body.get("sdp"), str):
+        raise HTTPException(
+            status_code=400,
+            detail='Expected JSON {"type": "offer", "sdp": "..."}',
+        )
+
+    offer_sdp = body["sdp"]
+    log_sdp_transport("OFFER", offer_sdp)
+    if "m=audio" not in offer_sdp:
+        raise HTTPException(status_code=400, detail="SDP offer has no audio section")
+    if "m=application" not in offer_sdp:
+        raise HTTPException(
+            status_code=400,
+            detail="SDP offer has no data channel (m=application)",
+        )
+
+    pc = RTCPeerConnection()
+    _WEBRTC_PEERS.add(pc)
+    outgoing = WebRTCPCMTrack(WEBRTC_SAMPLE_RATE)
+    link = WebRTCHardwareLink(pc, outgoing, device_id)
+    previous = _DEVICE_LINKS.pop(device_id, None)
+    if previous is not None:
+        logger.info("Replacing the existing WebRTC session for device=%s", device_id)
+        await previous.close()
+    _DEVICE_LINKS[device_id] = link
+
+    @pc.on("datachannel")
+    def on_datachannel(channel):
+        logger.info("WebRTC data channel received: %s", channel.label)
+        link.set_data_channel(channel)
+
+    @pc.on("track")
+    def on_track(track):
+        logger.info("WebRTC track received: device=%s kind=%s", device_id, track.kind)
+        if track.kind == "audio":
+            task = asyncio.create_task(link.feed_audio_track(track))
+            link._audio_tasks.add(task)
+            task.add_done_callback(link._audio_tasks.discard)
+
+    @pc.on("connectionstatechange")
+    def on_connectionstatechange():
+        logger.info("WebRTC peer state: device=%s state=%s", device_id, pc.connectionState)
+        if pc.connectionState in ("failed", "closed"):
+            asyncio.create_task(link.close())
+
+    try:
+        await pc.setRemoteDescription(RTCSessionDescription(sdp=offer_sdp, type="offer"))
+ 
+
+        control_channel = pc.createDataChannel(
+            "control",
+            ordered=True,
+        )
+        link.set_data_channel(control_channel)
+
+        logger.info(
+            "WebRTC control channel created locally: device=%s",
+            device_id,
+        )
+
+        await _attach_outgoing_audio(pc, outgoing)
+        _prefer_pcma(pc)
+
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+
+        deadline = time.monotonic() + 8.0
+        while pc.iceGatheringState != "complete" and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
+
+        signaled_host = (request.headers.get("host") or "").split(":")[0].strip("[]")
+        answer_sdp = _sdp_for_esp(
+            pc.localDescription.sdp if pc.localDescription else "",
+            signaled_host or None,
+        )
+        log_sdp_transport("ANSWER", answer_sdp)
+        if "a=candidate:" not in answer_sdp:
+            raise RuntimeError("Answer SDP has no ICE candidates")
+        if "a=sendrecv" not in answer_sdp:
+            raise RuntimeError("Answer SDP is not sendrecv")
+        if "PCMA" not in answer_sdp and "pcma" not in answer_sdp:
+            logger.warning("Answer SDP has no PCMA codec; the ESP32 expects G.711 A-law")
+        logger.info(
+            "WebRTC answer ready: device=%s bytes=%d ice=%s",
+            device_id, len(answer_sdp), pc.iceGatheringState,
+        )
+
+        session = asyncio.create_task(hardware_voice_websocket(link, device_id))
+
+        def _session_done(task):
+            _WEBRTC_PEERS.discard(pc)
+            if task.cancelled():
+                return
+            exc = task.exception()
+            if exc is not None:
+                logger.error(
+                    "WebRTC voice session crashed: device=%s error=%s",
+                    device_id, exc, exc_info=exc,
+                )
+                asyncio.create_task(link.close())
+
+        session.add_done_callback(_session_done)
+        return {"type": pc.localDescription.type, "sdp": answer_sdp}
+    except HTTPException:
+        _WEBRTC_PEERS.discard(pc)
+        await link.close()
+        raise
+    except Exception as exc:
+        _WEBRTC_PEERS.discard(pc)
+        await link.close()
+        logger.exception("WebRTC negotiation failed for device=%s", device_id)
+        raise HTTPException(status_code=500, detail="WebRTC negotiation failed") from exc
+
+
+async def close_hardware_webrtc_peers():
+    peers = list(_WEBRTC_PEERS)
+    if peers:
+        await asyncio.gather(*(pc.close() for pc in peers), return_exceptions=True)
+    _WEBRTC_PEERS.clear()

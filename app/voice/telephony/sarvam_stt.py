@@ -516,6 +516,21 @@ async def transcribe_pcm(
     recognition_rate = sample_rate
     wav_bytes = _pcm_to_wav(pcm, recognition_rate)
 
+    if os.getenv("STT_DEBUG_DUMP", "0") == "1":
+        try:
+            path = f"/tmp/SPARK-STT_{int(time.time() * 1000)}.wav"
+
+            with open(path, "wb") as f:
+                f.write(wav_bytes)
+
+            print(
+                f"💾 [STT WAV DUMP] {path} "
+                f"bytes={len(wav_bytes)} rate={recognition_rate}",
+                flush=True,
+            )
+        except Exception as exc:
+            logger.exception("STT WAV dump failed: %s", exc)
+
     print(
         f"🎤 [STT] Deepgram {DEEPGRAM_MODEL} ko bhej rahe hain: "
         f"{len(wav_bytes)} B @ {recognition_rate} Hz | "

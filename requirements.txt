@@ -68,6 +68,7 @@ livekit
 livekit-api
 livekit-agents[deepgram,sarvam,silero]
 websockets
+aiortc>=1.11.0
 
 # ==========================================
 # Document Parsing (RAG / Uploads)
