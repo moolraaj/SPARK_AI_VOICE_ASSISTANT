@@ -64,7 +64,7 @@ STT_LANGUAGE       = os.getenv("STT_LANGUAGE", "hi-IN")
 STT_DEBUG          = _env_bool("STT_DEBUG", True)
 
 # Thresholds tuned for short words like "hii". Low-latency end-of-speech.
-STT_SILENCE_MS     = _env_int("STT_SILENCE_MS", 500)
+STT_SILENCE_MS     = _env_int("STT_SILENCE_MS", 320)
 STT_MIN_SPEECH_MS  = _env_int("STT_MIN_SPEECH_MS", 120)
 STT_MIN_ENERGY     = _env_int("STT_MIN_ENERGY", 100)
 STT_VAD_RMS        = _env_int("STT_VAD_RMS", 220)
@@ -79,7 +79,7 @@ STT_PHRASE_LIMIT   = _env_int("STT_PHRASE_TIME_LIMIT", 20)
 # Half-duplex gate: while TTS plays, ignore mic unless energy is clearly a
 # barge-in. Short hangover lets user reply sooner after the AI finishes.
 TTS_GATE_HANGOVER_SEC = _env_float("TTS_GATE_HANGOVER_SEC", 0.22)
-TTS_BARGE_IN_RMS      = _env_int("TTS_BARGE_IN_RMS", 4500)
+TTS_BARGE_IN_RMS      = _env_int("TTS_BARGE_IN_RMS", 2200)
 
 # --- Deepgram STT -------------------------------------------------------
 

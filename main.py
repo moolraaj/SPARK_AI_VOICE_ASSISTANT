@@ -22,12 +22,14 @@ async def lifespan(app: FastAPI):
     try:
         await redis_client.connect()
     except Exception:
-        print("⚡ Redis not running. Auto-starting redis-server daemon...")
+        print("⚡ Redis not running. Attempting auto-start...")
         import subprocess, asyncio
-        subprocess.run(["redis-server", "--daemonize", "yes"], check=False)
-        await asyncio.sleep(1)
         try:
+            subprocess.run(["redis-server", "--daemonize", "yes"], check=False)
+            await asyncio.sleep(1)
             await redis_client.connect()
+        except FileNotFoundError:
+            print("⚠️ 'redis-server' command not found on this Windows system. Continuing without Redis...")
         except Exception as re_err:
             print(f"⚠️ Redis connection warning: {re_err}")
 
@@ -39,12 +41,14 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    from app.voice.telephony.hardware_websocket import close_hardware_webrtc_peers
-    await close_hardware_webrtc_peers()
-    await mongodb.disconnect()
-    await redis_client.disconnect()
     try:
-        await qdrant_store.disconnect()
+        from app.voice.telephony.hardware_websocket import close_hardware_webrtc_peers
+        await close_hardware_webrtc_peers()
+    except Exception:
+        pass
+    await mongodb.disconnect()
+    try:
+        await redis_client.disconnect()
     except Exception:
         pass
 
